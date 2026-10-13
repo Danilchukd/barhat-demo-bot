@@ -195,6 +195,7 @@ function normalizeSearchText(value: string): string {
 }
 
 // Поиск демок по названию
+
 export function searchDemos(
   query: string,
   limit: number = 10
@@ -205,18 +206,36 @@ export function searchDemos(
     return [];
   }
 
+  type SearchRow = DemoSearchRow & {
+    description: string | null;
+  };
+
   const demos = db.prepare(`
-    SELECT id, title
+    SELECT
+      id,
+      title,
+      description
     FROM demos
     ORDER BY id DESC
-  `).all() as DemoSearchRow[];
+  `).all() as SearchRow[];
 
-  return demos
-    .filter((demo) =>
-      normalizeSearchText(demo.title).includes(searchText)
-    )
-    .slice(0, limit);
+  const matches = demos.filter((demo) => {
+    const title = normalizeSearchText(demo.title);
+    const description = normalizeSearchText(
+      demo.description ?? ""
+    );
+
+    return (
+      title.includes(searchText) ||
+      description.includes(searchText)
+    );
+  });
+
+  return matches
+    .slice(0, limit)
+    .map(({ id, title }) => ({ id, title }));
 }
+
 
 
 export type DemoProperties = {
@@ -248,5 +267,38 @@ export function updateDemoProperties(
 
   return result.changes > 0;
 }
+
+
+export function getDemosByType(
+  ideaType: DemoType | null,
+  limit: number = 10
+): DemoSearchRow[] {
+  // Ограничиваем количество результатов
+  const safeLimit = Math.max(
+    1,
+    Math.min(10, Math.trunc(limit))
+  );
+
+  // Демки без указанного типа
+  if (ideaType === null) {
+    return db.prepare(`
+      SELECT id, title
+      FROM demos
+      WHERE idea_type IS NULL
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(safeLimit) as DemoSearchRow[];
+  }
+
+  // Демки выбранного типа
+  return db.prepare(`
+    SELECT id, title
+    FROM demos
+    WHERE idea_type = ?
+    ORDER BY id DESC
+    LIMIT ?
+  `).all(ideaType, safeLimit) as DemoSearchRow[];
+}
+
 
 

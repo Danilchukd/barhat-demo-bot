@@ -5,12 +5,15 @@ import {
   cancelKeyboard,
   mainKeyboard,
   demoListKeyboard,
+  searchMenuKeyboard,
+  ideaTypeFilterKeyboard,
 } from "./keyboards.js";
 import { initialSession, type MyContext } from "./session.js";
 import { sendDemo } from "./sendDemo.js";
 import {
   getDemoById,
   updateDemoProperties,
+  getDemosByType,
   DEMO_TYPE_LABELS,
   type DemoType,
 } from "../db/demoRepository.js";
@@ -83,28 +86,21 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
   bot.callbackQuery("menu_search", async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    // Пока поиск доступен в личном чате
     if (ctx.chat?.type !== "private") {
       await ctx.reply(
-        "🔎 Поиск пока доступен в личном чате с ботом."
+        "Поиск пока доступен в личном чате с ботом."
       );
       return;
     }
 
-    // Переводим пользователя в режим поиска
-    ctx.session = {
-      step: "search",
-      title: "",
-    };
+    ctx.session = initialSession();
 
     const message =
       "🔎 Поиск демок BARHAT\n\n" +
-      "Введи название или часть названия демки:";
+      "Как будем искать демки?";
 
-    const keyboard = cancelKeyboard();
+    const keyboard = searchMenuKeyboard();
 
-    // Текстовое сообщение редактируем,
-    // а после аудио отправляем новое
     const callbackMessage = ctx.callbackQuery.message;
 
     if (callbackMessage && "text" in callbackMessage) {
@@ -118,7 +114,122 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
     }
   });
 
+bot.callbackQuery("search_text", async (ctx) => {
+  await ctx.answerCallbackQuery();
 
+  if (ctx.chat?.type !== "private") {
+    await ctx.reply(
+      "Поиск доступен в личном чате с ботом."
+    );
+    return;
+  }
+
+  ctx.session = {
+    step: "search",
+    title: "",
+  };
+
+  const message =
+    "🔤 Поиск по названию и описанию\n\n" +
+    "Введи название или часть описания демки:";
+
+  const callbackMessage = ctx.callbackQuery.message;
+
+  if (callbackMessage && "text" in callbackMessage) {
+    await ctx.editMessageText(message, {
+      reply_markup: cancelKeyboard(),
+    });
+  } else {
+    await ctx.reply(message, {
+      reply_markup: cancelKeyboard(),
+    });
+  }
+});
+
+
+bot.callbackQuery("search_types", async (ctx) => {
+  await ctx.answerCallbackQuery();
+
+  if (ctx.chat?.type !== "private") {
+    await ctx.reply(
+      "Поиск доступен в личном чате с ботом."
+    );
+    return;
+  }
+
+  ctx.session = initialSession();
+
+  const message =
+    "🎼 Поиск по типу идеи\n\n" +
+    "Выбери интересующую категорию:";
+
+  const keyboard = ideaTypeFilterKeyboard();
+
+  const callbackMessage = ctx.callbackQuery.message;
+
+  if (callbackMessage && "text" in callbackMessage) {
+    await ctx.editMessageText(message, {
+      reply_markup: keyboard,
+    });
+  } else {
+    await ctx.reply(message, {
+      reply_markup: keyboard,
+    });
+  }
+});
+
+
+bot.callbackQuery(
+  /^filter_type:(riff|vocal|song_sketch|full_demo|other|none)$/,
+  async (ctx) => {
+    await ctx.answerCallbackQuery();
+
+    if (ctx.chat?.type !== "private") {
+      await ctx.reply(
+        "Поиск доступен в личном чате с ботом."
+      );
+      return;
+    }
+
+    ctx.session = initialSession();
+
+    const rawType = ctx.match[1] as DemoType | "none";
+
+    const ideaType: DemoType | null =
+      rawType === "none" ? null : rawType;
+
+    // Получаем демки нужного типа
+    const demos = getDemosByType(ideaType);
+
+    const typeName = ideaType === null
+      ? "Без типа"
+      : DEMO_TYPE_LABELS[ideaType];
+
+    const message = demos.length === 0
+      ? `🎼 Тип: ${typeName}\n\n` +
+        "Демок с таким типом пока нет."
+      : `🎼 Тип: ${typeName}\n\n` +
+        `Показано демок: ${demos.length}\n\n` +
+        "Выбери демку для прослушивания:";
+
+    const keyboard = demoListKeyboard(
+      demos,
+      "type"
+    );
+
+    const callbackMessage = ctx.callbackQuery.message;
+
+    if (callbackMessage && "text" in callbackMessage) {
+      await ctx.editMessageText(message, {
+        reply_markup: keyboard,
+      });
+    } else {
+      await ctx.reply(message, {
+        reply_markup: keyboard,
+      });
+    }
+  }
+);
 
   bot.callbackQuery("menu_list", async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -163,7 +274,7 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
     await ctx.answerCallbackQuery();
     ctx.session = initialSession();
     await ctx.editMessageText(
-      "Добавление демки отменено.\n\nВыбери следующее действие:",
+      "Действие отменено.\n\nВыбери следующее действие:",
       { reply_markup: mainKeyboard() }
     );
   });
@@ -184,127 +295,127 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
     await sendDemo(ctx, demoId);
   });
 
-  
-bot.callbackQuery(/^demo_edit:(\d+)$/, async (ctx) => {
-  await ctx.answerCallbackQuery();
 
-  if (!canEditDemo(ctx)) {
-    await ctx.reply("⛔ У тебя нет прав на редактирование.");
-    return;
-  }
+  bot.callbackQuery(/^demo_edit:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
 
-  const demoId = Number(ctx.match[1]);
-
-  if (!Number.isSafeInteger(demoId) || demoId <= 0) {
-    await ctx.reply("Некорректный ID демки.");
-    return;
-  }
-
-  if (!getDemoById(demoId)) {
-    await ctx.reply("Демка не найдена.");
-    return;
-  }
-
-  ctx.session = initialSession();
-
-  // Отправляем отдельное сообщение,
-  // чтобы не заменять исходное аудио.
-  await ctx.reply(getPropertiesText(demoId), {
-    reply_markup: demoPropertiesKeyboard(demoId),
-  });
-});
-
-
-bot.callbackQuery(
-  /^prop_type:(\d+):(riff|vocal|song_sketch|full_demo|other|none)$/,
-  async (ctx) => {
     if (!canEditDemo(ctx)) {
-      await ctx.answerCallbackQuery({
-        text: "Нет прав на редактирование",
-        show_alert: true,
-      });
+      await ctx.reply("⛔ У тебя нет прав на редактирование.");
       return;
     }
 
     const demoId = Number(ctx.match[1]);
-    const rawType = ctx.match[2];
 
     if (!Number.isSafeInteger(demoId) || demoId <= 0) {
-      await ctx.answerCallbackQuery({
-        text: "Некорректный ID",
-      });
+      await ctx.reply("Некорректный ID демки.");
       return;
     }
 
-    const demo = getDemoById(demoId);
-
-    if (!demo) {
-      await ctx.answerCallbackQuery({
-        text: "Демка не найдена",
-      });
+    if (!getDemoById(demoId)) {
+      await ctx.reply("Демка не найдена.");
       return;
     }
 
-    const ideaType: DemoType | null =
-      rawType === "none" ? null : rawType as DemoType;
+    ctx.session = initialSession();
 
-    if (demo.idea_type === ideaType) {
-      await ctx.answerCallbackQuery({
-        text: "Этот тип уже выбран",
-      });
-      return;
-    }
-
-    await ctx.answerCallbackQuery();
-
-    // Сохраняем существующее описание
-    updateDemoProperties(demoId, {
-      description: demo.description,
-      ideaType,
+    // Отправляем отдельное сообщение,
+    // чтобы не заменять исходное аудио.
+    await ctx.reply(getPropertiesText(demoId), {
+      reply_markup: demoPropertiesKeyboard(demoId),
     });
+  });
 
-    await ctx.editMessageText(
-      getPropertiesText(demoId),
-      {
-        reply_markup: demoPropertiesKeyboard(demoId),
+
+  bot.callbackQuery(
+    /^prop_type:(\d+):(riff|vocal|song_sketch|full_demo|other|none)$/,
+    async (ctx) => {
+      if (!canEditDemo(ctx)) {
+        await ctx.answerCallbackQuery({
+          text: "Нет прав на редактирование",
+          show_alert: true,
+        });
+        return;
       }
-    );
-  }
-);
 
+      const demoId = Number(ctx.match[1]);
+      const rawType = ctx.match[2];
 
-bot.callbackQuery(/^prop_desc:(\d+)$/, async (ctx) => {
-  await ctx.answerCallbackQuery();
+      if (!Number.isSafeInteger(demoId) || demoId <= 0) {
+        await ctx.answerCallbackQuery({
+          text: "Некорректный ID",
+        });
+        return;
+      }
 
-  if (!canEditDemo(ctx)) {
-    await ctx.reply("⛔ У тебя нет прав на редактирование.");
-    return;
-  }
+      const demo = getDemoById(demoId);
 
-  const demoId = Number(ctx.match[1]);
+      if (!demo) {
+        await ctx.answerCallbackQuery({
+          text: "Демка не найдена",
+        });
+        return;
+      }
 
-  if (!Number.isSafeInteger(demoId) ||
-      demoId <= 0 ||
-      !getDemoById(demoId)) {
-    await ctx.reply("Демка не найдена.");
-    return;
-  }
+      const ideaType: DemoType | null =
+        rawType === "none" ? null : rawType as DemoType;
 
-  ctx.session = {
-    step: "edit_description",
-    title: "",
-    editDemoId: demoId,
-  };
+      if (demo.idea_type === ideaType) {
+        await ctx.answerCallbackQuery({
+          text: "Этот тип уже выбран",
+        });
+        return;
+      }
 
-  await ctx.editMessageText(
-    `📝 Описание демки #${demoId}\n\n` +
-    "Отправь новое описание (до 500 символов).\n\n" +
-    "Отправь один символ «-», чтобы очистить описание.",
-    {
-      reply_markup: new InlineKeyboard()
-        .text("❌ Отмена", `demo_edit:${demoId}`),
+      await ctx.answerCallbackQuery();
+
+      // Сохраняем существующее описание
+      updateDemoProperties(demoId, {
+        description: demo.description,
+        ideaType,
+      });
+
+      await ctx.editMessageText(
+        getPropertiesText(demoId),
+        {
+          reply_markup: demoPropertiesKeyboard(demoId),
+        }
+      );
     }
   );
-});
+
+
+  bot.callbackQuery(/^prop_desc:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+
+    if (!canEditDemo(ctx)) {
+      await ctx.reply("⛔ У тебя нет прав на редактирование.");
+      return;
+    }
+
+    const demoId = Number(ctx.match[1]);
+
+    if (!Number.isSafeInteger(demoId) ||
+      demoId <= 0 ||
+      !getDemoById(demoId)) {
+      await ctx.reply("Демка не найдена.");
+      return;
+    }
+
+    ctx.session = {
+      step: "edit_description",
+      title: "",
+      editDemoId: demoId,
+    };
+
+    await ctx.editMessageText(
+      `📝 Описание демки #${demoId}\n\n` +
+      "Отправь новое описание (до 500 символов).\n\n" +
+      "Отправь один символ «-», чтобы очистить описание.",
+      {
+        reply_markup: new InlineKeyboard()
+          .text("❌ Отмена", `demo_edit:${demoId}`),
+      }
+    );
+  });
 
 }
