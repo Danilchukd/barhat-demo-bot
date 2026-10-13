@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# SQLite database
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Build
+dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Private credentials
+credentials.json
