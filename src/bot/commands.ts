@@ -99,4 +99,15 @@ bot.command("demo", async (ctx) => {
   await sendDemo(ctx, demoId);
 });
 
+bot.command("myid", async (ctx) => {
+  const userId = ctx.from?.id;
+
+  if (userId === undefined) {
+    await ctx.reply("Не удалось определить Telegram ID.");
+    return;
+  }
+
+  await ctx.reply(`Твой Telegram ID: ${userId}`);
+});
+
 }

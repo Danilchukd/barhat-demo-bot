@@ -2,6 +2,9 @@
 import { getDemoById } from "../db/demoRepository.js";
 import { demoViewKeyboard } from "./keyboards.js";
 import type { MyContext } from "./session.js";
+import {
+  DEMO_TYPE_LABELS,
+} from "../db/demoRepository.js";
 
 // Отправка демки пользователю
 export async function sendDemo(
@@ -15,8 +18,26 @@ export async function sendDemo(
     return;
   }
 
-  const caption = `🎵 #${demoId} — ${demo.title}`;
-  const keyboard = demoViewKeyboard();
+  
+const lines = [
+  `🎵 #${demoId} — ${demo.title}`,
+];
+
+if (demo.idea_type) {
+  lines.push(
+    `🎼 Тип: ${DEMO_TYPE_LABELS[demo.idea_type]}`
+  );
+}
+
+if (demo.description) {
+  lines.push(
+    `📝 Описание: ${demo.description}`
+  );
+}
+
+const caption = lines.join("\n\n");
+
+  const keyboard = demoViewKeyboard(demoId);
 
   // Демка по ссылке
   if (demo.url) {

@@ -1,5 +1,21 @@
-
 import { db } from "./database.js";
+
+// Типы музыкальных идей
+export type DemoType =
+  | "riff"
+  | "vocal"
+  | "song_sketch"
+  | "full_demo"
+  | "other";
+
+// Названия типов для интерфейса Telegram
+export const DEMO_TYPE_LABELS: Record<DemoType, string> = {
+  riff: "Рифф",
+  vocal: "Вокальная идея",
+  song_sketch: "Набросок песни",
+  full_demo: "Полная демка",
+  other: "Другое",
+};
 
 // Тип строки списка демок
 export type DemoRow = {
@@ -11,6 +27,8 @@ export type DemoRow = {
 // Тип подробной записи
 export type DemoFileRow = {
   title: string;
+  description: string | null;
+  idea_type: DemoType | null;
   source_type: string | null;
   url: string | null;
   telegram_file_id: string | null;
@@ -145,6 +163,8 @@ export function getDemoById(
   return db.prepare(`
     SELECT
       d.title,
+      d.description,
+      d.idea_type,
       f.source_type,
       f.url,
       f.telegram_file_id
@@ -158,3 +178,75 @@ export function getDemoById(
     WHERE d.id = ?
   `).get(demoId) as DemoFileRow | undefined;
 }
+
+
+export type DemoSearchRow = {
+  id: number;
+  title: string;
+};
+
+// Нормализация строки для поиска
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("ru-RU")
+    .replace(/ё/g, "е")
+    .trim();
+}
+
+// Поиск демок по названию
+export function searchDemos(
+  query: string,
+  limit: number = 10
+): DemoSearchRow[] {
+  const searchText = normalizeSearchText(query);
+
+  if (!searchText) {
+    return [];
+  }
+
+  const demos = db.prepare(`
+    SELECT id, title
+    FROM demos
+    ORDER BY id DESC
+  `).all() as DemoSearchRow[];
+
+  return demos
+    .filter((demo) =>
+      normalizeSearchText(demo.title).includes(searchText)
+    )
+    .slice(0, limit);
+}
+
+
+export type DemoProperties = {
+  description: string | null;
+  ideaType: DemoType | null;
+};
+
+// Обновление свойств существующей демки
+export function updateDemoProperties(
+  demoId: number,
+  properties: DemoProperties
+): boolean {
+  if (properties.description &&
+      properties.description.length > 500) {
+    throw new Error("Описание слишком длинное");
+  }
+
+  const result = db.prepare(`
+    UPDATE demos
+    SET
+      description = ?,
+      idea_type = ?
+    WHERE id = ?
+  `).run(
+    properties.description,
+    properties.ideaType,
+    demoId
+  );
+
+  return result.changes > 0;
+}
+
+

@@ -1,4 +1,3 @@
-
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
@@ -20,12 +19,13 @@ db.pragma("foreign_keys = ON");
 // Создаём таблицы
 db.exec(`
   CREATE TABLE IF NOT EXISTS demos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'idea',
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  description TEXT,
+  idea_type TEXT,
+  status TEXT NOT NULL DEFAULT 'idea',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
   CREATE TABLE IF NOT EXISTS demo_files (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,5 +40,24 @@ db.exec(`
       ON DELETE CASCADE
   );
 `);
+
+type TableColumn = {
+  name: string;
+};
+
+// Получаем список существующих столбцов
+const columns = db
+  .prepare("PRAGMA table_info(demos)")
+  .all() as TableColumn[];
+
+// Добавляем новый столбец, если его ещё нет
+if (!columns.some((column) => column.name === "idea_type")) {
+  db.exec(`
+    ALTER TABLE demos
+    ADD COLUMN idea_type TEXT
+  `);
+
+  console.log("Миграция: добавлен столбец idea_type");
+}
 
 console.log("База данных SQLite подключена!");
