@@ -72,4 +72,79 @@ if (!columns.some((column) => column.name === "deleted_at")) {
 }
 
 
+//
+// Миграции таблицы demo_files
+//
+
+const fileColumns = db
+  .prepare("PRAGMA table_info(demo_files)")
+  .all() as TableColumn[];
+
+// Название конкретного файла или версии
+if (!fileColumns.some((col) => col.name === "label")) {
+  db.exec(`
+    ALTER TABLE demo_files
+    ADD COLUMN label TEXT
+  `);
+
+  console.log("Миграция: добавлен demo_files.label");
+}
+
+// Уникальный идентификатор файла в Telegram
+if (!fileColumns.some(
+  (col) => col.name === "telegram_file_unique_id"
+)) {
+  db.exec(`
+    ALTER TABLE demo_files
+    ADD COLUMN telegram_file_unique_id TEXT
+  `);
+
+  console.log(
+    "Миграция: добавлен telegram_file_unique_id"
+  );
+}
+
+
+if (!fileColumns.some(
+  (column) => column.name === "deleted_at"
+)) {
+  db.exec(`
+    ALTER TABLE demo_files
+    ADD COLUMN deleted_at TEXT
+  `);
+
+  console.log(
+    "Миграция: добавлен demo_files.deleted_at"
+  );
+}
+
+
+//
+// Основной файл музыкальной идеи
+//
+
+if (!fileColumns.some(
+  (column) => column.name === "is_primary"
+)) {
+  db.exec(`
+    ALTER TABLE demo_files
+    ADD COLUMN is_primary INTEGER NOT NULL DEFAULT 0
+  `);
+
+  console.log(
+    "Миграция: добавлен demo_files.is_primary"
+  );
+}
+
+// Только один активный основной файл на демку
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS
+    idx_demo_files_primary
+  ON demo_files(demo_id)
+  WHERE is_primary = 1
+    AND deleted_at IS NULL
+`);
+
+
+
 console.log("База данных SQLite подключена!");

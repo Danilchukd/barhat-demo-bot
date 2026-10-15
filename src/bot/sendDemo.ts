@@ -1,15 +1,16 @@
-
-import { getDemoById } from "../db/demoRepository.js";
-import { demoViewKeyboard } from "./keyboards.js";
-import type { MyContext } from "./session.js";
 import {
+  getDemoById,
+  getDemoAttachmentById,
   DEMO_TYPE_LABELS,
 } from "../db/demoRepository.js";
+import { demoViewKeyboard } from "./keyboards.js";
+import type { MyContext } from "./session.js";
 
 // Отправка демки пользователю
 export async function sendDemo(
   ctx: MyContext,
-  demoId: number
+  demoId: number,
+  attachmentId?: number
 ): Promise<void> {
   const demo = getDemoById(demoId);
 
@@ -17,6 +18,25 @@ export async function sendDemo(
     await ctx.reply("❌ Демка не найдена.");
     return;
   }
+
+  
+// Выбираем источник файла.
+//
+// Без attachmentId используем последний файл,
+// как делали раньше.
+//
+// С attachmentId получаем конкретное вложение.
+const file = attachmentId === undefined
+  ? demo
+  : getDemoAttachmentById(demoId, attachmentId);
+
+if (!file) {
+  await ctx.reply(
+    "❌ Указанный файл не найден."
+  );
+  return;
+}
+
 
 
   const lines = [
@@ -40,9 +60,9 @@ export async function sendDemo(
   const keyboard = demoViewKeyboard(demoId, ctx);
 
   // Демка по ссылке
-  if (demo.url) {
+  if (file.url) {
     await ctx.reply(
-      `${caption}\n\n🔗 ${demo.url}`,
+      `${caption}\n\n🔗 ${file.url}`,
       {
         reply_markup: keyboard,
       }
@@ -50,7 +70,7 @@ export async function sendDemo(
     return;
   }
 
-  const fileId = demo.telegram_file_id;
+  const fileId = file.telegram_file_id;
 
   if (!fileId) {
     await ctx.reply("У этой демки нет файла.", {
@@ -60,7 +80,7 @@ export async function sendDemo(
   }
 
   // Демка из Telegram
-  switch (demo.source_type) {
+  switch (file.source_type) {
     case "telegram_voice":
       await ctx.replyWithVoice(fileId, {
         caption,

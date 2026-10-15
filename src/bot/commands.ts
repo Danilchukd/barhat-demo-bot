@@ -4,6 +4,8 @@ import {
   getRecentDemos,
   getSourceType,
   saveDemo,
+  getDemoAttachments,
+  getDemoById,
 } from "../db/demoRepository.js";
 import {
   mainKeyboard,
@@ -11,6 +13,7 @@ import {
 } from "./keyboards.js";
 import { initialSession, type MyContext } from "./session.js";
 import { sendDemo } from "./sendDemo.js";
+import { buildArchiveView } from "./archiveView.js";
 
 export function registerCommands(bot: Bot<MyContext>): void {
   bot.command("start", async (ctx) => {
@@ -19,7 +22,7 @@ export function registerCommands(bot: Bot<MyContext>): void {
     }
 
     await ctx.reply(
-      "Бетпещера, яйца\n\n" +
+      "Джон Бархат на связи\n\n" +
         "Здесь можно находить и сохранять музыкальные идеи группы.\n\n" +
         "Выбери действие:",
       { reply_markup: mainKeyboard(ctx) }
@@ -73,20 +76,14 @@ export function registerCommands(bot: Bot<MyContext>): void {
         `Источник: ${sourceType}`
     );
   });
+  
+bot.command("list", async (ctx) => {
+  const view = buildArchiveView(0);
 
-  bot.command("list", async (ctx) => {
-    const demos = getRecentDemos();
-
-    const message = demos.length === 0
-      ? "📁 В архиве пока нет демок."
-      : "🎧 Последние демки\n\n" +
-      "Выбери демку для прослушивания:";
-
-    await ctx.reply(message, {
-      reply_markup: demoListKeyboard(demos),
-    });
+  await ctx.reply(view.text, {
+    reply_markup: view.keyboard,
   });
-
+});
 
 bot.command("demo", async (ctx) => {
   const demoId = Number(ctx.match.trim());
@@ -98,6 +95,58 @@ bot.command("demo", async (ctx) => {
 
   await sendDemo(ctx, demoId);
 });
+
+
+bot.command("files", async (ctx) => {
+  const demoId = Number(ctx.match.trim());
+
+  if (!Number.isSafeInteger(demoId) || demoId <= 0) {
+    await ctx.reply("Использование: /files ID");
+    return;
+  }
+
+  const demo = getDemoById(demoId);
+
+  if (!demo) {
+    await ctx.reply("❌ Демка не найдена.");
+    return;
+  }
+
+  const files = getDemoAttachments(demoId);
+
+  if (files.length === 0) {
+    await ctx.reply("У демки нет прикреплённых файлов.");
+    return;
+  }
+
+  const sourceLabels: Record<string, string> = {
+    telegram_voice: "🎤 Голосовое",
+    telegram_audio: "🎧 Аудио",
+    telegram_document: "📄 Документ",
+    telegram_video_note: "🎥 Кружок",
+    google_drive: "☁️ Google Drive",
+    yandex_disk: "☁️ Яндекс Диск",
+    external: "🔗 Внешняя ссылка",
+  };
+
+  const lines = files.slice(0, 20).map((file, index) => {
+    const source =
+      sourceLabels[file.source_type] ?? file.source_type;
+
+    const label = file.label ?? `Файл ${index + 1}`;
+
+    return `${index + 1}. ${label}\n${source} • ID файла: ${file.id}`;
+  });
+
+  await ctx.reply(
+    `📎 Файлы демки #${demoId}\n` +
+    `🎵 ${demo.title}\n\n` +
+    `Всего файлов: ${files.length}\n\n` +
+    lines.join("\n\n") +
+    (files.length > 20 ? "\n\nПоказаны первые 20 файлов." : "")
+  );
+});
+
 
 bot.command("myid", async (ctx) => {
   const userId = ctx.from?.id;

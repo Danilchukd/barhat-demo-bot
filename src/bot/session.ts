@@ -6,12 +6,17 @@ export type Step =
   | "source"
   | "search"
   | "edit_description"
-  | "edit_title";
+  | "edit_title"
+  | "attach_source"
+  | "edit_attachment_label";
 
 export interface SessionData {
   step: Step;
   title: string;
   editDemoId?: number;
+  attachDemoId?: number;
+  editAttachmentDemoId?: number;
+  editAttachmentId?: number;
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;

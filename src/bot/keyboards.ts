@@ -15,7 +15,7 @@ export const mainKeyboard = (ctx: MyContext) => {
     .row()
     .text("➕ Добавить демку", "menu_add")
     .row()
-    .text("📁 Последние демки", "menu_list")
+    .text("📁 Все демки", "menu_list")
     .row()
     .text("📊 Статистика", "menu_stats");
 
@@ -99,6 +99,10 @@ export const demoViewKeyboard = (
 
   // Общие кнопки для всех пользователей
   return keyboard
+    .text("📎 Все файлы", `demo_files:${demoId}`)
+    .row()
+    .text("➕ Прикрепить файл", `demo_attach:${demoId}`)
+    .row()
     .text("📁 К списку демок", "menu_list")
     .row()
     .text("🏠 Главное меню", "menu_home");
@@ -218,6 +222,152 @@ export const trashKeyboard = (
     "menu_home"
   );
 };
+
+
+
+type AttachmentButtonData = {
+  id: number;
+  source_type: string;
+  label: string | null;
+  is_primary: number;
+};
+
+export const demoAttachmentsKeyboard = (
+  demoId: number,
+  files: AttachmentButtonData[],
+  canManage: boolean = false
+) => {
+  const keyboard = new InlineKeyboard();
+
+  const sourceIcons: Record<string, string> = {
+    telegram_voice: "🎤",
+    telegram_audio: "🎧",
+    telegram_document: "📄",
+    telegram_video_note: "🎥",
+    google_drive: "☁️",
+    yandex_disk: "☁️",
+    external: "🔗",
+  };
+
+  files.slice(0, 20).forEach((file, index) => {
+    const icon = sourceIcons[file.source_type] ?? "📎";
+
+    const label = file.label?.trim()
+      || `Файл ${index + 1}`;
+
+    const shortLabel = label.length > 35
+      ? label.slice(0, 35) + "..."
+      : label;
+
+    // Кнопка получения файла
+    const primaryMark = file.is_primary === 1
+      ? "⭐ "
+      : "";
+
+    keyboard.text(
+      `${primaryMark}${icon} ${shortLabel}`,
+      `file_open:${demoId}:${file.id}`
+    );
+
+    // Удаление только для администратора
+
+    if (canManage) {
+      // Переименование файла
+      keyboard.text(
+        "⭐",
+        `file_primary:${demoId}:${file.id}`
+      );
+
+      keyboard.text(
+        "✏️",
+        `file_label:${demoId}:${file.id}`
+      );
+
+      // Удаление файла
+      keyboard.text(
+        "🗑",
+        `file_delete:${demoId}:${file.id}`
+      );
+    }
+
+
+    keyboard.row();
+  });
+
+  return keyboard
+    .text("📁 К списку демок", "menu_list")
+    .row()
+    .text("🏠 Главное меню", "menu_home");
+};
+
+
+export const attachmentResultKeyboard = (
+  demoId: number
+) =>
+  new InlineKeyboard()
+    .text("📎 Все файлы", `demo_files:${demoId}`)
+    .row()
+    .text("➕ Прикрепить ещё", `demo_attach:${demoId}`)
+    .row()
+    .text("🏠 Главное меню", "menu_home");
+
+
+type ArchiveDemoItem = {
+  id: number;
+  title: string;
+};
+
+export const archivePageKeyboard = (
+  demos: ArchiveDemoItem[],
+  page: number,
+  totalPages: number
+) => {
+  const keyboard = new InlineKeyboard();
+
+  // Кнопки открытия демок
+  for (const demo of demos) {
+    const title = demo.title.length > 40
+      ? demo.title.slice(0, 40) + "..."
+      : demo.title;
+
+    keyboard
+      .text(
+        `🎵 #${demo.id} — ${title}`,
+        `demo_open:${demo.id}`
+      )
+      .row();
+  }
+
+  // Навигация между страницами
+  if (page > 0) {
+    keyboard.text(
+      "◀️ Назад",
+      `archive_page:${page - 1}`
+    );
+  }
+
+  if (page < totalPages - 1) {
+    keyboard.text(
+      "Вперёд ▶️",
+      `archive_page:${page + 1}`
+    );
+  }
+
+  if (totalPages > 1) {
+    keyboard.row();
+  }
+
+  // Главное меню
+  keyboard.text(
+    "🏠 Главное меню",
+    "menu_home"
+  );
+
+  return keyboard;
+};
+
+
+
 
 
 
