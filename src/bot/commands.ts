@@ -19,10 +19,10 @@ export function registerCommands(bot: Bot<MyContext>): void {
     }
 
     await ctx.reply(
-      "🎸 Добро пожаловать в архив демок BARHAT!\n\n" +
+      "Бетпещера, яйца\n\n" +
         "Здесь можно находить и сохранять музыкальные идеи группы.\n\n" +
         "Выбери действие:",
-      { reply_markup: mainKeyboard() }
+      { reply_markup: mainKeyboard(ctx) }
     );
   });
 

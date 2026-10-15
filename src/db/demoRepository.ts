@@ -38,7 +38,8 @@ export type DemoFileRow = {
 export type TelegramFileType =
   | "telegram_voice"
   | "telegram_audio"
-  | "telegram_document";
+  | "telegram_document"
+  | "telegram_video_note";
 
 // Определяем источник ссылки
 export function getSourceType(url: URL): string {
@@ -130,6 +131,7 @@ export function countDemos(): number {
   const result = db.prepare(`
     SELECT COUNT(*) AS total
     FROM demos
+    WHERE deleted_at IS NULL
   `).get() as { total: number };
 
   return result.total;
@@ -151,6 +153,7 @@ export function getRecentDemos(
         LIMIT 1
       ) AS url
     FROM demos d
+    WHERE d.deleted_at IS NULL
     ORDER BY d.id DESC
     LIMIT ?
   `).all(limit) as DemoRow[];
@@ -174,6 +177,7 @@ export function getDemoById(
         SELECT MAX(df.id)
         FROM demo_files df
         WHERE df.demo_id = d.id
+        AND d.deleted_at IS NULL
       )
     WHERE d.id = ?
   `).get(demoId) as DemoFileRow | undefined;
@@ -216,6 +220,7 @@ export function searchDemos(
       title,
       description
     FROM demos
+    WHERE deleted_at IS NULL
     ORDER BY id DESC
   `).all() as SearchRow[];
 
@@ -259,6 +264,7 @@ export function updateDemoProperties(
       description = ?,
       idea_type = ?
     WHERE id = ?
+    AND deleted_at IS NULL
   `).run(
     properties.description,
     properties.ideaType,
@@ -285,6 +291,7 @@ export function getDemosByType(
       SELECT id, title
       FROM demos
       WHERE idea_type IS NULL
+      AND deleted_at IS NULL
       ORDER BY id DESC
       LIMIT ?
     `).all(safeLimit) as DemoSearchRow[];
@@ -295,10 +302,101 @@ export function getDemosByType(
     SELECT id, title
     FROM demos
     WHERE idea_type = ?
+    AND deleted_at IS NULL
     ORDER BY id DESC
     LIMIT ?
   `).all(ideaType, safeLimit) as DemoSearchRow[];
 }
+
+
+/**
+ * Изменение названия существующей демки.
+ * Возвращает true, если запись обновлена.
+ */
+export function updateDemoTitle(
+  demoId: number,
+  newTitle: string
+): boolean {
+  const title = newTitle.trim();
+
+  if (
+    !Number.isSafeInteger(demoId) ||
+    demoId <= 0
+  ) {
+    throw new Error("Некорректный ID демки");
+  }
+
+  if (!title || title.length > 150) {
+    throw new Error(
+      "Название должно содержать от 1 до 150 символов"
+    );
+  }
+
+  const result = db.prepare(`
+    UPDATE demos
+    SET title = ?
+    WHERE id = ?
+    AND deleted_at IS NULL
+  `).run(title, demoId);
+
+  return result.changes > 0;
+}
+
+
+// Перемещение демки в корзину
+export function softDeleteDemo(demoId: number): boolean {
+  const result = db.prepare(`
+    UPDATE demos
+    SET deleted_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+      AND deleted_at IS NULL
+  `).run(demoId);
+
+  return result.changes > 0;
+}
+
+// Восстановление демки из корзины
+export function restoreDemo(demoId: number): boolean {
+  const result = db.prepare(`
+    UPDATE demos
+    SET deleted_at = NULL
+    WHERE id = ?
+      AND deleted_at IS NOT NULL
+  `).run(demoId);
+
+  return result.changes > 0;
+}
+
+
+export type DeletedDemoRow = {
+  id: number;
+  title: string;
+  deleted_at: string;
+};
+
+// Получение демок из корзины
+export function getDeletedDemos(
+  limit: number = 10
+): DeletedDemoRow[] {
+  const safeLimit = Math.max(
+    1,
+    Math.min(50, Math.trunc(limit))
+  );
+
+  return db.prepare(`
+    SELECT
+      id,
+      title,
+      deleted_at
+    FROM demos
+    WHERE deleted_at IS NOT NULL
+    ORDER BY deleted_at DESC, id DESC
+    LIMIT ?
+  `).all(safeLimit) as DeletedDemoRow[];
+}
+
+
+
 
 
 

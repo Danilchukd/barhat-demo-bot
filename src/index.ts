@@ -3,6 +3,7 @@ import "dotenv/config";
 import { Bot, session } from "grammy";
 import { HttpsProxyAgent } from "https-proxy-agent";
 
+import { accessMiddleware } from "./bot/access.js";
 import { registerCommands } from "./bot/commands.js";
 import { registerCallbacks } from "./bot/callbacks.js";
 import { registerMessages } from "./bot/messages.js";
@@ -28,6 +29,9 @@ const bot = new Bot<MyContext>(token, {
     },
   },
 });
+
+// Сначала проверяем права пользователя
+bot.use(accessMiddleware);
 
 bot.use(
   session({

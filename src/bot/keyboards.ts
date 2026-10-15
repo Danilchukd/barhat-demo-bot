@@ -3,11 +3,14 @@ import {
   DEMO_TYPE_LABELS,
   type DemoType,
 } from "../db/demoRepository.js";
+import type { MyContext } from "./session.js";
+import { canEditDemo } from "./access.js";
 
 // Главное меню
 
-export const mainKeyboard = () =>
-  new InlineKeyboard()
+
+export const mainKeyboard = (ctx: MyContext) => {
+  const keyboard = new InlineKeyboard()
     .text("🔎 Найти демку", "menu_search")
     .row()
     .text("➕ Добавить демку", "menu_add")
@@ -15,6 +18,16 @@ export const mainKeyboard = () =>
     .text("📁 Последние демки", "menu_list")
     .row()
     .text("📊 Статистика", "menu_stats");
+
+  // Корзина доступна только администратору
+  if (canEditDemo(ctx)) {
+    keyboard
+      .row()
+      .text("🗑 Корзина", "menu_trash");
+  }
+
+  return keyboard;
+};
 
 
 // Возвращение в главное меню
@@ -70,13 +83,27 @@ export const demoListKeyboard = (
 
 
 // Кнопки после получения демки
-export const demoViewKeyboard = (demoId: number) =>
-  new InlineKeyboard()
-    .text("✏️ Изменить свойства", `demo_edit:${demoId}`)
-    .row()
+
+export const demoViewKeyboard = (
+  demoId: number,
+  ctx: MyContext
+) => {
+  const keyboard = new InlineKeyboard();
+
+  // Редактирование доступно только администратору
+  if (canEditDemo(ctx)) {
+    keyboard
+      .text("✏️ Изменить свойства", `demo_edit:${demoId}`)
+      .row();
+  }
+
+  // Общие кнопки для всех пользователей
+  return keyboard
     .text("📁 К списку демок", "menu_list")
     .row()
     .text("🏠 Главное меню", "menu_home");
+};
+
 
 
 // Клавиатура редактирования свойств
@@ -94,7 +121,11 @@ export const demoPropertiesKeyboard = (demoId: number) =>
     .row()
     .text("❌ Без типа", `prop_type:${demoId}:none`)
     .row()
+    .text("✏️ Изменить название", `prop_title:${demoId}`)
+    .row()
     .text("📝 Изменить описание", `prop_desc:${demoId}`)
+    .row()
+    .text("🗑 Удалить демку", `demo_delete:${demoId}`)
     .row()
     .text("▶️ Получить демку", `demo_open:${demoId}`)
     .row()
@@ -135,6 +166,60 @@ export const ideaTypeFilterKeyboard = () => {
     .row()
     .text("🏠 Главное меню", "menu_home");
 };
+
+
+// Подтверждение удаления
+export const demoDeleteConfirmKeyboard = (demoId: number) =>
+  new InlineKeyboard()
+    .text(
+      "🗑 Да, переместить в корзину",
+      `demo_delete_confirm:${demoId}`
+    )
+    .row()
+    .text(
+      "❌ Отмена",
+      `demo_delete_cancel:${demoId}`
+    );
+
+// После удаления
+export const demoDeletedKeyboard = (demoId: number) =>
+  new InlineKeyboard()
+    .text("↩️ Восстановить", `demo_restore:${demoId}`)
+    .row()
+    .text("🏠 Главное меню", "menu_home");
+
+
+type TrashDemoItem = {
+  id: number;
+  title: string;
+};
+
+// Клавиатура корзины
+export const trashKeyboard = (
+  demos: TrashDemoItem[]
+) => {
+  const keyboard = new InlineKeyboard();
+
+  for (const demo of demos) {
+    const title = demo.title.length > 35
+      ? demo.title.slice(0, 35) + "..."
+      : demo.title;
+
+    keyboard
+      .text(
+        `↩️ #${demo.id} — ${title}`,
+        `trash_restore:${demo.id}`
+      )
+      .row();
+  }
+
+  return keyboard.text(
+    "🏠 Главное меню",
+    "menu_home"
+  );
+};
+
+
 
 
 

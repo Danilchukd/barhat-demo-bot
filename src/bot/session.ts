@@ -5,7 +5,8 @@ export type Step =
   | "title"
   | "source"
   | "search"
-  | "edit_description";
+  | "edit_description"
+  | "edit_title";
 
 export interface SessionData {
   step: Step;

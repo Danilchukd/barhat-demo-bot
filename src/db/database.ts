@@ -24,7 +24,8 @@ db.exec(`
   description TEXT,
   idea_type TEXT,
   status TEXT NOT NULL DEFAULT 'idea',
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TEXT
 );
 
   CREATE TABLE IF NOT EXISTS demo_files (
@@ -59,5 +60,16 @@ if (!columns.some((column) => column.name === "idea_type")) {
 
   console.log("Миграция: добавлен столбец idea_type");
 }
+
+
+if (!columns.some((column) => column.name === "deleted_at")) {
+  db.exec(`
+    ALTER TABLE demos
+    ADD COLUMN deleted_at TEXT
+  `);
+
+  console.log("Миграция: добавлен столбец deleted_at");
+}
+
 
 console.log("База данных SQLite подключена!");

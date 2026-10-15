@@ -6,6 +6,7 @@ import {
   searchDemos,
   getDemoById,
   updateDemoProperties,
+  updateDemoTitle,
   type TelegramFileType,
 } from "../db/demoRepository.js";
 import {
@@ -31,6 +32,76 @@ export function registerMessages(bot: Bot<MyContext>): void {
       await next();
       return;
     }
+
+
+    // Переименование существующей демки
+    if (step === "edit_title") {
+      if (!canEditDemo(ctx)) {
+        ctx.session = initialSession();
+        await ctx.reply("⛔ Нет прав на редактирование.");
+        return;
+      }
+
+      const demoId = ctx.session.editDemoId;
+
+      if (
+        demoId === undefined ||
+        !Number.isSafeInteger(demoId) ||
+        demoId <= 0
+      ) {
+        ctx.session = initialSession();
+        await ctx.reply("Ошибка: демка не выбрана.");
+        return;
+      }
+
+      const newTitle = text.trim();
+
+      // Проверяем новое название
+      if (!newTitle || newTitle.length > 150) {
+        await ctx.reply(
+          "Название должно содержать от 1 до 150 символов."
+        );
+        return;
+      }
+
+      const demo = getDemoById(demoId);
+
+      if (!demo) {
+        ctx.session = initialSession();
+        await ctx.reply("❌ Демка не найдена.");
+        return;
+      }
+
+      // Не обновляем запись без необходимости
+      if (demo.title === newTitle) {
+        await ctx.reply(
+          "Это название уже используется для данной демки.\n" +
+          "Введи другое название."
+        );
+        return;
+      }
+
+      // Сохраняем название
+      const updated = updateDemoTitle(demoId, newTitle);
+
+      ctx.session = initialSession();
+
+      if (!updated) {
+        await ctx.reply("❌ Не удалось изменить название.");
+        return;
+      }
+
+      await ctx.reply(
+        `✅ Название демки #${demoId} изменено!\n\n` +
+        `🎵 ${newTitle}`,
+        {
+          reply_markup: demoPropertiesKeyboard(demoId),
+        }
+      );
+
+      return;
+    }
+
 
 
     if (step === "edit_description") {
@@ -140,8 +211,9 @@ export function registerMessages(bot: Bot<MyContext>): void {
         "Теперь отправь демку одним из способов:\n\n" +
         "🔗 Ссылкой на Google Drive или Яндекс Диск\n" +
         "🎤 Голосовым сообщением\n" +
-        "🎧 Аудиофайлом\n\n" +
-        "Можно переслать существующее сообщение из Telegram."
+        "🎧 Аудиофайлом\n" +
+        "🎥 Кружком Telegram\n\n" +
+        "Можно также переслать существующее сообщение."
       );
       return;
     }
@@ -169,7 +241,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
         `ID: ${demoId}\n` +
         `Название: ${title}\n` +
         `Источник: ${sourceType}`,
-        { reply_markup: mainKeyboard() }
+        { reply_markup: mainKeyboard(ctx) }
       );
     }
   });
@@ -186,6 +258,9 @@ export function registerMessages(bot: Bot<MyContext>): void {
     if (ctx.message.voice) {
       fileId = ctx.message.voice.file_id;
       sourceType = "telegram_voice";
+    } else if (ctx.message.video_note) {
+      fileId = ctx.message.video_note.file_id;
+      sourceType = "telegram_video_note";
     } else if (ctx.message.audio) {
       fileId = ctx.message.audio.file_id;
       sourceType = "telegram_audio";
@@ -205,7 +280,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
       fileId = document.file_id;
       sourceType = "telegram_document";
     } else {
-      await ctx.reply("Отправь ссылку, голосовое сообщение или аудиофайл.");
+      await ctx.reply("Отправь ссылку, голосовое, кружок или файл.");
       return;
     }
 
@@ -219,7 +294,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
       `Название: ${title}\n` +
       `Источник: Telegram\n\n` +
       `Для прослушивания: /demo ${demoId}`,
-      { reply_markup: mainKeyboard() }
+      { reply_markup: mainKeyboard(ctx) }
     );
   });
 }

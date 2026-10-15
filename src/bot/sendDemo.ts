@@ -18,26 +18,26 @@ export async function sendDemo(
     return;
   }
 
-  
-const lines = [
-  `🎵 #${demoId} — ${demo.title}`,
-];
 
-if (demo.idea_type) {
-  lines.push(
-    `🎼 Тип: ${DEMO_TYPE_LABELS[demo.idea_type]}`
-  );
-}
+  const lines = [
+    `🎵 #${demoId} — ${demo.title}`,
+  ];
 
-if (demo.description) {
-  lines.push(
-    `📝 Описание: ${demo.description}`
-  );
-}
+  if (demo.idea_type) {
+    lines.push(
+      `🎼 Тип: ${DEMO_TYPE_LABELS[demo.idea_type]}`
+    );
+  }
 
-const caption = lines.join("\n\n");
+  if (demo.description) {
+    lines.push(
+      `📝 Описание: ${demo.description}`
+    );
+  }
 
-  const keyboard = demoViewKeyboard(demoId);
+  const caption = lines.join("\n\n");
+
+  const keyboard = demoViewKeyboard(demoId, ctx);
 
   // Демка по ссылке
   if (demo.url) {
@@ -80,6 +80,17 @@ const caption = lines.join("\n\n");
         caption,
         reply_markup: keyboard,
       });
+      break;
+
+    case "telegram_video_note":
+      // У кружков нет обычного caption
+      await ctx.replyWithVideoNote(fileId);
+
+      // Отдельно отправляем название и кнопки
+      await ctx.reply(caption, {
+        reply_markup: keyboard,
+      });
+
       break;
 
     default:
