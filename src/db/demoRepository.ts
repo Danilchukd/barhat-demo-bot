@@ -52,6 +52,7 @@ export function getSourceType(url: URL): string {
   if (
     host === "disk.yandex.ru" ||
     host === "disk.yandex.com" ||
+    host === "disk.yandex.com.am" ||
     host === "yadi.sk"
   ) {
     return "yandex_disk";

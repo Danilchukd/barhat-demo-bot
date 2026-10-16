@@ -1,6 +1,8 @@
 
 import "dotenv/config";
 import { google, type sheets_v4 } from "googleapis";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 const spreadsheetId = process.env.GOOGLE_SHEET_ID ?? "";
 const sheetName = process.env.GOOGLE_SHEET_TAB ?? "";
@@ -72,34 +74,68 @@ function extractLinks(cell?: Cell): string[] {
   return [...links];
 }
 
+
+type ImportCandidate = {
+  sourceRow: number;
+  title: string;
+  sourceType: "google_drive" | "yandex_disk" | "external";
+  url: string;
+};
+
+// Определяем источник файла
+function detectSource(
+  url: string
+): ImportCandidate["sourceType"] {
+  const host = new URL(url).hostname.toLowerCase();
+
+  if (
+    host === "drive.google.com" ||
+    host === "docs.google.com"
+  ) {
+    return "google_drive";
+  }
+
+  if (
+    host === "disk.yandex.ru" ||
+    host === "disk.yandex.com" ||
+    host === "disk.yandex.com.am" ||
+    host === "yadi.sk"
+  ) {
+    return "yandex_disk";
+  }
+
+  return "external";
+}
+
+
 async function main() {
   console.log("Подключаемся к Google Sheets...");
 
-  
-const metadata = await sheets.spreadsheets.get({
-  spreadsheetId,
-  fields:
-    "properties(title),sheets(properties(title,sheetId))",
-});
 
-console.log(
-  "Название таблицы:",
-  metadata.data.properties?.title
-);
-
-console.log("Доступные вкладки:");
-
-for (const sheet of metadata.data.sheets ?? []) {
-  console.log({
-    title: sheet.properties?.title,
-    sheetId: sheet.properties?.sheetId,
-    exactTitle: JSON.stringify(sheet.properties?.title),
+  const metadata = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields:
+      "properties(title),sheets(properties(title,sheetId))",
   });
-}
 
-if (process.argv.includes("--tabs-only")) {
-  return;
-}
+  console.log(
+    "Название таблицы:",
+    metadata.data.properties?.title
+  );
+
+  console.log("Доступные вкладки:");
+
+  for (const sheet of metadata.data.sheets ?? []) {
+    console.log({
+      title: sheet.properties?.title,
+      sheetId: sheet.properties?.sheetId,
+      exactTitle: JSON.stringify(sheet.properties?.title),
+    });
+  }
+
+  if (process.argv.includes("--tabs-only")) {
+    return;
+  }
 
 
   const escapedSheetName = sheetName.replace(/'/g, "''");
@@ -127,6 +163,8 @@ if (process.argv.includes("--tabs-only")) {
     source: string;
   }[] = [];
 
+  const candidates: ImportCandidate[] = [];
+
   rows.forEach((row, index) => {
     const cells = row.values ?? [];
 
@@ -152,7 +190,57 @@ if (process.argv.includes("--tabs-only")) {
       links: links.length,
       source: [...new Set(sources)].join(", "),
     });
+
+    for (const link of links) {
+      candidates.push({
+        sourceRow: (grid.startRow ?? 0) + index + 1,
+        title,
+        sourceType: detectSource(link),
+        url: link,
+      });
+    }
   });
+
+
+  // Папка для результатов импорта
+  const outputDir = join(
+    process.cwd(),
+    "data",
+    "imports"
+  );
+
+  await mkdir(outputDir, {
+    recursive: true,
+  });
+
+  // Файл с найденными ссылками
+  const outputPath = join(
+    outputDir,
+    "sheet-links.json"
+  );
+
+  // Сохраняем данные
+  await writeFile(
+    outputPath,
+    JSON.stringify(
+      {
+        sheetName,
+        generatedAt: new Date().toISOString(),
+        total: candidates.length,
+        entries: candidates,
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+
+  console.log(
+    `\n✅ Сохранено ссылок: ${candidates.length}`
+  );
+
+  console.log(`📁 Файл: ${outputPath}`);
+
 
   console.table(results);
 
