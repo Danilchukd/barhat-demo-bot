@@ -49,7 +49,9 @@ type DemoListItem = {
 // Список демок с кнопками
 export const demoListKeyboard = (
   demos: DemoListItem[],
-  mode: "search" | "type" = "search"
+  mode: "search" | "type" = "search",
+  page?: number,
+  totalPages?: number
 ) => {
   const keyboard = new InlineKeyboard();
 
@@ -61,10 +63,35 @@ export const demoListKeyboard = (
     keyboard
       .text(
         `🎵 #${demo.id} — ${title}`,
-        `demo_open:${demo.id}`
+        `demo_open:${demo.id}:${mode}:${page ?? 0}`
       )
       .row();
   }
+
+
+  // Постраничная навигация
+  if (
+    page !== undefined &&
+    totalPages !== undefined &&
+    totalPages > 1
+  ) {
+    if (page > 0) {
+      keyboard.text(
+        "◀️ Назад",
+        `${mode}_page:${page - 1}`
+      );
+    }
+
+    if (page < totalPages - 1) {
+      keyboard.text(
+        "Вперёд ▶️",
+        `${mode}_page:${page + 1}`
+      );
+    }
+
+    keyboard.row();
+  }
+
 
   // Куда возвращаемся из результатов
   const backText = mode === "type"
@@ -103,7 +130,16 @@ export const demoViewKeyboard = (
     .row()
     .text("➕ Прикрепить файл", `demo_attach:${demoId}`)
     .row()
-    .text("📁 К списку демок", "menu_list")
+    .text(
+      ctx.session.returnTo?.source === "archive"
+        ? "📁 К странице архива"
+        : ctx.session.returnTo
+          ? "↩️ К результатам поиска"
+          : "📁 К списку демок",
+      ctx.session.returnTo
+        ? "return_to_results"
+        : "menu_list"
+    )
     .row()
     .text("🏠 Главное меню", "menu_home");
 };
@@ -235,7 +271,8 @@ type AttachmentButtonData = {
 export const demoAttachmentsKeyboard = (
   demoId: number,
   files: AttachmentButtonData[],
-  canManage: boolean = false
+  canManage: boolean = false,
+  hasReturnTo: boolean = false
 ) => {
   const keyboard = new InlineKeyboard();
 
@@ -297,7 +334,14 @@ export const demoAttachmentsKeyboard = (
   });
 
   return keyboard
-    .text("📁 К списку демок", "menu_list")
+    .text(
+      hasReturnTo
+        ? "↩️ К предыдущим результатам"
+        : "📁 К списку демок",
+      hasReturnTo
+        ? "return_to_results"
+        : "menu_list"
+    )
     .row()
     .text("🏠 Главное меню", "menu_home");
 };
@@ -335,7 +379,7 @@ export const archivePageKeyboard = (
     keyboard
       .text(
         `🎵 #${demo.id} — ${title}`,
-        `demo_open:${demo.id}`
+        `demo_open:${demo.id}:archive:${page}`
       )
       .row();
   }

@@ -1,4 +1,5 @@
 import type { Context, SessionFlavor } from "grammy";
+import type { DemoType } from "../db/demoRepository.js";
 
 export type Step =
   | "idle"
@@ -17,6 +18,9 @@ export interface SessionData {
   attachDemoId?: number;
   editAttachmentDemoId?: number;
   editAttachmentId?: number;
+  searchQuery?: string;
+  filterType?: DemoType | "none";
+  returnTo?: ReturnTo | undefined;
 }
 
 export type MyContext = Context & SessionFlavor<SessionData>;
@@ -27,3 +31,20 @@ export function initialSession(): SessionData {
     title: "",
   };
 }
+
+export type ReturnTo =
+  | {
+      source: "archive";
+      page: number;
+    }
+  | {
+      source: "search";
+      page: number;
+      query: string;
+    }
+  | {
+      source: "type";
+      page: number;
+      filterType: DemoType | "none";
+    };
+

@@ -93,6 +93,7 @@ bot.command("demo", async (ctx) => {
     return;
   }
 
+  ctx.session.returnTo = undefined;
   await sendDemo(ctx, demoId);
 });
 

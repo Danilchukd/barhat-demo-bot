@@ -20,6 +20,7 @@ import {
 import { initialSession, type MyContext } from "./session.js";
 import { demoPropertiesKeyboard } from "./keyboards.js";
 import { canEditDemo } from "./access.js";
+import { buildSearchResultsView } from "./searchResultsView.js";
 
 export function registerMessages(bot: Bot<MyContext>): void {
   // Важно: регистрировать ПОСЛЕ registerCommands и registerCallbacks.
@@ -308,6 +309,8 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
 
     // Обработка поискового запроса
+
+    // Обработка поискового запроса
     if (step === "search") {
       if (text.length < 2 || text.length > 80) {
         await ctx.reply(
@@ -316,36 +319,22 @@ export function registerMessages(bot: Bot<MyContext>): void {
         return;
       }
 
-      // Получаем подходящие демки
-      const demos = searchDemos(text);
+      // Сохраняем запрос в сессии
+      ctx.session = {
+        ...initialSession(),
+        searchQuery: text,
+      };
 
-      // Завершаем режим поиска
-      ctx.session = initialSession();
+      // Формируем первую страницу
+      const view = buildSearchResultsView(text, 0);
 
-      // Совпадений нет
-      if (demos.length === 0) {
-        await ctx.reply(
-          `🔎 По запросу «${text}» ничего не найдено.\n\n` +
-          "Попробуй другое название.",
-          {
-            reply_markup: demoListKeyboard([]),
-          }
-        );
-        return;
-      }
-
-      // Формируем сообщение с результатами
-      const message =
-        `🔎 Результаты поиска: «${text}»\n\n` +
-        `Показано демок: ${demos.length}\n\n` +
-        "Выбери демку для прослушивания:";
-
-      await ctx.reply(message, {
-        reply_markup: demoListKeyboard(demos),
+      await ctx.reply(view.text, {
+        reply_markup: view.keyboard,
       });
 
       return;
     }
+
 
 
     if (step === "title") {

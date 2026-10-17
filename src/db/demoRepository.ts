@@ -253,6 +253,45 @@ export function searchDemos(
 }
 
 
+export function getSearchPage(
+  query: string,
+  requestedPage: number = 0
+): ArchivePage {
+  const pageSize = 8;
+
+  // Используем существующий поиск,
+  // но получаем все совпадения
+  const allDemos = searchDemos(
+    query,
+    Number.MAX_SAFE_INTEGER
+  );
+
+  const total = allDemos.length;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(total / pageSize)
+  );
+
+  const page = Number.isSafeInteger(requestedPage)
+    ? Math.max(
+        0,
+        Math.min(requestedPage, totalPages - 1)
+      )
+    : 0;
+
+  const offset = page * pageSize;
+
+  return {
+    demos: allDemos.slice(
+      offset,
+      offset + pageSize
+    ),
+    page,
+    totalPages,
+    total,
+  };
+}
 
 export type DemoProperties = {
   description: string | null;
@@ -319,6 +358,56 @@ export function getDemosByType(
   `).all(ideaType, safeLimit) as DemoSearchRow[];
 }
 
+
+export function getTypePage(
+  ideaType: DemoType | null,
+  requestedPage: number = 0
+): ArchivePage {
+  const pageSize = 8;
+
+  // SQLite: IS ? работает и для NULL,
+  // и для обычных строковых значений
+  const result = db.prepare(`
+    SELECT COUNT(*) AS total
+    FROM demos
+    WHERE deleted_at IS NULL
+      AND idea_type IS ?
+  `).get(ideaType) as { total: number };
+
+  const total = result.total;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(total / pageSize)
+  );
+
+  const page = Number.isSafeInteger(requestedPage)
+    ? Math.max(
+        0,
+        Math.min(requestedPage, totalPages - 1)
+      )
+    : 0;
+
+  const demos = db.prepare(`
+    SELECT id, title
+    FROM demos
+    WHERE deleted_at IS NULL
+      AND idea_type IS ?
+    ORDER BY id DESC
+    LIMIT ? OFFSET ?
+  `).all(
+    ideaType,
+    pageSize,
+    page * pageSize
+  ) as DemoSearchRow[];
+
+  return {
+    demos,
+    page,
+    totalPages,
+    total,
+  };
+}
 
 /**
  * Изменение названия существующей демки.

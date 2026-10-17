@@ -18,7 +18,6 @@ import { sendDemo } from "./sendDemo.js";
 import {
   getDemoById,
   updateDemoProperties,
-  getDemosByType,
   DEMO_TYPE_LABELS,
   softDeleteDemo,
   restoreDemo,
@@ -33,6 +32,8 @@ import {
 
 import { demoPropertiesKeyboard } from "./keyboards.js";
 import { canEditDemo } from "./access.js";
+import { buildSearchResultsView } from "./searchResultsView.js";
+import { buildTypeResultsView } from "./typeResultsView.js";
 
 
 function getPropertiesText(demoId: number): string {
@@ -124,8 +125,8 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
     ctx.session = initialSession();
 
     const message =
-      "🔎 Поиск демок BARHAT\n\n" +
-      "Как будем искать демки?";
+      "🔎 Поиск демок\n\n" +
+      "Выбери тип поиска";
 
     const keyboard = searchMenuKeyboard();
 
@@ -174,6 +175,40 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
     }
   });
 
+  
+// Переключение страниц текстового поиска
+bot.callbackQuery(
+  /^search_page:(\d+)$/,
+  async (ctx) => {
+    await ctx.answerCallbackQuery();
+
+    if (ctx.chat?.type !== "private") {
+      return;
+    }
+
+    // Получаем сохранённый поисковый запрос
+    const query = ctx.session.searchQuery;
+
+    if (!query) {
+      await ctx.reply(
+        "Поисковый запрос больше не сохранён.\n" +
+        "Начни поиск заново."
+      );
+      return;
+    }
+
+    const page = Number(ctx.match[1] ?? "0");
+
+    const view = buildSearchResultsView(
+      query,
+      page
+    );
+
+    await ctx.editMessageText(view.text, {
+      reply_markup: view.keyboard,
+    });
+  }
+);
 
   bot.callbackQuery("search_types", async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -207,57 +242,83 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
   });
 
 
-  bot.callbackQuery(
-    /^filter_type:(riff|vocal|song_sketch|full_demo|other|none)$/,
-    async (ctx) => {
-      await ctx.answerCallbackQuery();
+  
+bot.callbackQuery(
+  /^filter_type:(riff|vocal|song_sketch|full_demo|other|none)$/,
+  async (ctx) => {
+    await ctx.answerCallbackQuery();
 
-      if (ctx.chat?.type !== "private") {
-        await ctx.reply(
-          "Поиск доступен в личном чате с ботом."
-        );
-        return;
-      }
-
-      ctx.session = initialSession();
-
-      const rawType = ctx.match[1] as DemoType | "none";
-
-      const ideaType: DemoType | null =
-        rawType === "none" ? null : rawType;
-
-      // Получаем демки нужного типа
-      const demos = getDemosByType(ideaType);
-
-      const typeName = ideaType === null
-        ? "Без типа"
-        : DEMO_TYPE_LABELS[ideaType];
-
-      const message = demos.length === 0
-        ? `🎼 Тип: ${typeName}\n\n` +
-        "Демок с таким типом пока нет."
-        : `🎼 Тип: ${typeName}\n\n` +
-        `Показано демок: ${demos.length}\n\n` +
-        "Выбери демку для прослушивания:";
-
-      const keyboard = demoListKeyboard(
-        demos,
-        "type"
+    if (ctx.chat?.type !== "private") {
+      await ctx.reply(
+        "Поиск доступен в личном чате с ботом."
       );
-
-      const callbackMessage = ctx.callbackQuery.message;
-
-      if (callbackMessage && "text" in callbackMessage) {
-        await ctx.editMessageText(message, {
-          reply_markup: keyboard,
-        });
-      } else {
-        await ctx.reply(message, {
-          reply_markup: keyboard,
-        });
-      }
+      return;
     }
-  );
+
+    const rawType = ctx.match[1] as DemoType | "none";
+
+    // Запоминаем выбранный тип
+    ctx.session = {
+      ...initialSession(),
+      filterType: rawType,
+    };
+
+    // Первая страница выбранной категории
+    const view = buildTypeResultsView(
+      rawType,
+      0
+    );
+
+    const callbackMessage = ctx.callbackQuery.message;
+
+    if (callbackMessage && "text" in callbackMessage) {
+      await ctx.editMessageText(view.text, {
+        reply_markup: view.keyboard,
+      });
+    } else {
+      await ctx.reply(view.text, {
+        reply_markup: view.keyboard,
+      });
+    }
+  }
+);
+
+
+// Переключение страниц фильтра по типу
+bot.callbackQuery(
+  /^type_page:(\d+)$/,
+  async (ctx) => {
+    await ctx.answerCallbackQuery();
+
+    if (ctx.chat?.type !== "private") {
+      return;
+    }
+
+    const filterType = ctx.session.filterType;
+
+    if (!filterType) {
+      await ctx.reply(
+        "Выбранная категория больше не сохранена.\n" +
+        "Выбери тип демки заново.",
+        {
+          reply_markup: ideaTypeFilterKeyboard(),
+        }
+      );
+      return;
+    }
+
+    const page = Number(ctx.match[1] ?? "0");
+
+    const view = buildTypeResultsView(
+      filterType,
+      page
+    );
+
+    await ctx.editMessageText(view.text, {
+      reply_markup: view.keyboard,
+    });
+  }
+);
 
 
   bot.callbackQuery("menu_list", async (ctx) => {
@@ -317,21 +378,117 @@ bot.callbackQuery(
   });
 
   // Выбор демки из списка
-  bot.callbackQuery(/^demo_open:(\d+)$/, async (ctx) => {
+  
+bot.callbackQuery(
+  /^demo_open:(\d+)(?::(archive|search|type):(\d+))?$/,
+  async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    // Получаем ID из callback_data
-    const demoId = Number(ctx.match[1] ?? "");
+    const demoId = Number(ctx.match[1]);
+    const source = ctx.match[2];
+    const requestedPage = Number(ctx.match[3] ?? "0");
 
     if (!Number.isSafeInteger(demoId) || demoId <= 0) {
       await ctx.reply("❌ Некорректный ID демки.");
       return;
     }
 
-    // Отправляем выбранную демку
-    await sendDemo(ctx, demoId);
-  });
+    const page =
+      Number.isSafeInteger(requestedPage) &&
+      requestedPage >= 0
+        ? requestedPage
+        : 0;
 
+    // Сохраняем, откуда открыли демку
+    if (source === "archive") {
+      ctx.session.returnTo = {
+        source: "archive",
+        page,
+      };
+    } else if (
+      source === "search" &&
+      ctx.session.searchQuery
+    ) {
+      ctx.session.returnTo = {
+        source: "search",
+        page,
+        query: ctx.session.searchQuery,
+      };
+    } else if (
+      source === "type" &&
+      ctx.session.filterType
+    ) {
+      ctx.session.returnTo = {
+        source: "type",
+        page,
+        filterType: ctx.session.filterType,
+      };
+    } else {
+      // Открытие по старой кнопке или вне списка
+      ctx.session.returnTo = undefined;
+    }
+
+    await sendDemo(ctx, demoId);
+  }
+);
+
+
+// Возврат к предыдущим результатам
+bot.callbackQuery(
+  "return_to_results",
+  async (ctx) => {
+    await ctx.answerCallbackQuery();
+
+    const target = ctx.session.returnTo;
+
+    // Если состояние потерялось,
+    // безопасно возвращаемся в общий архив
+    if (!target) {
+      const view = buildArchiveView(0);
+
+      await ctx.reply(view.text, {
+        reply_markup: view.keyboard,
+      });
+      return;
+    }
+
+    let view;
+
+    switch (target.source) {
+      case "archive":
+        view = buildArchiveView(target.page);
+        break;
+
+      case "search":
+        view = buildSearchResultsView(
+          target.query,
+          target.page
+        );
+        break;
+
+      case "type":
+        view = buildTypeResultsView(
+          target.filterType,
+          target.page
+        );
+        break;
+    }
+
+    const callbackMessage = ctx.callbackQuery.message;
+
+    // Текстовые сообщения редактируем
+    if (callbackMessage && "text" in callbackMessage) {
+      await ctx.editMessageText(view.text, {
+        reply_markup: view.keyboard,
+      });
+    } else {
+      // Аудио и видео не заменяем текстом
+      await ctx.reply(view.text, {
+        reply_markup: view.keyboard,
+      });
+    }
+  }
+);
 
   // Просмотр всех файлов демки
   bot.callbackQuery(
@@ -368,7 +525,8 @@ bot.callbackQuery(
       const keyboard = demoAttachmentsKeyboard(
         demoId,
         files,
-        canEditDemo(ctx)
+        canEditDemo(ctx),
+        Boolean(ctx.session.returnTo)
       );
 
       const callbackMessage = ctx.callbackQuery.message;
@@ -610,7 +768,8 @@ bot.callbackQuery(
         reply_markup: demoAttachmentsKeyboard(
           demoId,
           files,
-          canEditDemo(ctx)
+          canEditDemo(ctx),
+          Boolean(ctx.session.returnTo)
         ),
       });
     }

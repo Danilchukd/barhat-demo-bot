@@ -9,22 +9,22 @@ import { registerCallbacks } from "./bot/callbacks.js";
 import { registerMessages } from "./bot/messages.js";
 import { initialSession, type MyContext } from "./bot/session.js";
 
+
 const token = process.env.BOT_TOKEN;
-const proxyUrl = process.env.PROXY_URL;
+const proxyUrl = process.env.PROXY_URL?.trim();
 
 if (!token) {
   throw new Error("BOT_TOKEN не найден в .env");
 }
 
-if (!proxyUrl) {
-  throw new Error("PROXY_URL не найден в .env");
-}
-
-// Создаём бота с подключением через NEOvpn.
+// Если PROXY_URL указан, используем прокси.
+// Иначе подключаемся к Telegram напрямую.
 const bot = new Bot<MyContext>(token, {
   client: {
     baseFetchConfig: {
-      agent: new HttpsProxyAgent(proxyUrl),
+      ...(proxyUrl
+        ? { agent: new HttpsProxyAgent(proxyUrl) }
+        : {}),
       compress: true,
     },
   },
@@ -50,11 +50,29 @@ registerCommands(bot);
 registerCallbacks(bot);
 registerMessages(bot);
 
-bot.catch((error) => {
-  console.error("Ошибка бота:", error);
+
+bot.catch((botError) => {
+  const error = botError.error;
+
+  if (error instanceof Error) {
+    console.error(
+      "Ошибка бота:",
+      error.name,
+      error.message
+    );
+  } else {
+    console.error(
+      "Ошибка бота: неизвестная ошибка"
+    );
+  }
 });
 
-console.log("Подключаемся к Telegram через NEOvpn...");
+
+console.log(
+  proxyUrl
+    ? "Подключаемся к Telegram через прокси..."
+    : "Подключаемся к Telegram напрямую..."
+);
 
 bot.start({
   onStart: (botInfo) => {
