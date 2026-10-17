@@ -8,6 +8,7 @@ import { registerCommands } from "./bot/commands.js";
 import { registerCallbacks } from "./bot/callbacks.js";
 import { registerMessages } from "./bot/messages.js";
 import { initialSession, type MyContext } from "./bot/session.js";
+import { getThreadId } from "./bot/forum.js";
 
 
 const token = process.env.BOT_TOKEN;
@@ -40,7 +41,8 @@ bot.use(
       if (!ctx.chat || !ctx.from) {
         return undefined;
       }
-      return `${ctx.chat.id}:${ctx.from.id}`;
+      const thread = ctx.chat.type === "supergroup" ? `:${getThreadId(ctx) ?? 0}` : "";
+      return `${ctx.chat.id}:${ctx.from.id}${thread}`;
     },
   })
 );

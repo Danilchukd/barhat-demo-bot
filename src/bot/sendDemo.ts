@@ -5,6 +5,7 @@ import {
 } from "../db/demoRepository.js";
 import { demoViewKeyboard } from "./keyboards.js";
 import type { MyContext } from "./session.js";
+import { replyInTopic, replyVoiceInTopic, replyAudioInTopic, replyDocumentInTopic, replyVideoInTopic, replyVideoNoteInTopic } from "./topicReply.js";
 
 // Отправка демки пользователю
 export async function sendDemo(
@@ -15,7 +16,7 @@ export async function sendDemo(
   const demo = getDemoById(demoId);
 
   if (!demo) {
-    await ctx.reply("❌ Демка не найдена.");
+    await replyInTopic(ctx, "❌ Демка не найдена.");
     return;
   }
 
@@ -31,7 +32,7 @@ export async function sendDemo(
     : getDemoAttachmentById(demoId, attachmentId);
 
   if (!file) {
-    await ctx.reply(
+    await replyInTopic(ctx, 
       "❌ Указанный файл не найден."
     );
     return;
@@ -61,7 +62,7 @@ export async function sendDemo(
 
   // Демка по ссылке
   if (file.url) {
-    await ctx.reply(
+    await replyInTopic(ctx, 
       `${caption}\n\n🔗 ${file.url}`,
       {
         reply_markup: keyboard,
@@ -73,7 +74,7 @@ export async function sendDemo(
   const fileId = file.telegram_file_id;
 
   if (!fileId) {
-    await ctx.reply("У этой демки нет файла.", {
+    await replyInTopic(ctx, "У этой демки нет файла.", {
       reply_markup: keyboard,
     });
     return;
@@ -82,14 +83,14 @@ export async function sendDemo(
   // Демка из Telegram
   switch (file.source_type) {
     case "telegram_voice":
-      await ctx.replyWithVoice(fileId, {
+      await replyVoiceInTopic(ctx, fileId, {
         caption,
         reply_markup: keyboard,
       });
       break;
 
     case "telegram_audio":
-      await ctx.replyWithAudio(fileId, {
+      await replyAudioInTopic(ctx, fileId, {
         caption,
         reply_markup: keyboard,
       });
@@ -97,7 +98,7 @@ export async function sendDemo(
 
     case "telegram_video_document":  
     case "telegram_document":
-      await ctx.replyWithDocument(fileId, {
+      await replyDocumentInTopic(ctx, fileId, {
         caption,
         reply_markup: keyboard,
       });
@@ -105,24 +106,24 @@ export async function sendDemo(
 
     case "telegram_video_note":
       // У кружков нет обычного caption
-      await ctx.replyWithVideoNote(fileId);
+      await replyVideoNoteInTopic(ctx, fileId);
 
       // Отдельно отправляем название и кнопки
-      await ctx.reply(caption, {
+      await replyInTopic(ctx, caption, {
         reply_markup: keyboard,
       });
 
       break;
 
     case "telegram_video":
-      await ctx.replyWithVideo(fileId, {
+      await replyVideoInTopic(ctx, fileId, {
         caption,
         reply_markup: keyboard,
       });
       break;
 
     default:
-      await ctx.reply(
+      await replyInTopic(ctx, 
         "Неизвестный тип файла.",
         { reply_markup: keyboard }
       );

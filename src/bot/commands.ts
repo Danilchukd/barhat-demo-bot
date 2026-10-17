@@ -12,16 +12,40 @@ import {
   demoListKeyboard,
 } from "./keyboards.js";
 import { initialSession, type MyContext } from "./session.js";
+import { getUserRole } from "./access.js";
+import { getThreadId } from "./forum.js";
+import { replyInTopic } from "./topicReply.js";
 import { sendDemo } from "./sendDemo.js";
 import { buildArchiveView } from "./archiveView.js";
 
 export function registerCommands(bot: Bot<MyContext>): void {
-  bot.command("start", async (ctx) => {
-    if (ctx.chat.type === "private") {
-      ctx.session = initialSession();
+  // Получение chat_id и message_thread_id при настройке топика
+  bot.command("topicid", async (ctx) => {
+    if (getUserRole(ctx.from?.id) !== "admin") return;
+
+    if (ctx.chat.type !== "supergroup") {
+      await replyInTopic(ctx, "Открой нужный топик супергруппы и введи /topicid.");
+      return;
     }
 
-    await ctx.reply(
+    const threadId = getThreadId(ctx);
+    if (threadId === undefined) {
+      await replyInTopic(ctx, "Это не отдельный топик. Создай тему и вызови /topicid внутри неё.");
+      return;
+    }
+
+    await replyInTopic(ctx,
+      "🔧 Параметры для .env на VPS:\n" +
+      `BARHAT_FORUM_CHAT_ID=${ctx.chat.id}\n` +
+      `BARHAT_FORUM_TOPIC_ID=${threadId}\n\n` +
+      "Не копируй эти настройки в публичный репозиторий."
+    );
+  });
+
+  bot.command("start", async (ctx) => {
+    ctx.session = initialSession();
+
+    await replyInTopic(ctx, 
       "Джон Бархат на связи\n\n" +
         "Здесь можно находить и сохранять музыкальные идеи группы.\n\n" +
         "Выбери действие:",
@@ -30,19 +54,19 @@ export function registerCommands(bot: Bot<MyContext>): void {
   });
 
   bot.command("ping", async (ctx) => {
-    await ctx.reply("BARHAT Demo Archive работает!");
+    await replyInTopic(ctx, "BARHAT Demo Archive работает!");
   });
 
   bot.command("stats", async (ctx) => {
     const total = countDemos();
-    await ctx.reply(`📊 Статистика BARHAT\n\nДемок в архиве: ${total}`);
+    await replyInTopic(ctx, `📊 Статистика BARHAT\n\nДемок в архиве: ${total}`);
   });
 
   bot.command("add", async (ctx) => {
     const [rawTitle, rawUrl, ...extra] = ctx.match.split("|");
 
     if (rawTitle === undefined || rawUrl === undefined || extra.length > 0) {
-      await ctx.reply("Использование:\n/add Название | Ссылка");
+      await replyInTopic(ctx, "Использование:\n/add Название | Ссылка");
       return;
     }
 
@@ -50,7 +74,7 @@ export function registerCommands(bot: Bot<MyContext>): void {
     const url = rawUrl.trim();
 
     if (!title || !url || title.length > 150) {
-      await ctx.reply("Укажи название до 150 символов и ссылку.");
+      await replyInTopic(ctx, "Укажи название до 150 символов и ссылку.");
       return;
     }
 
@@ -62,14 +86,14 @@ export function registerCommands(bot: Bot<MyContext>): void {
         throw new Error("Invalid URL");
       }
     } catch {
-      await ctx.reply("Некорректная ссылка на файл.");
+      await replyInTopic(ctx, "Некорректная ссылка на файл.");
       return;
     }
 
     const sourceType = getSourceType(parsedUrl);
     const demoId = saveDemo(title, url, sourceType);
 
-    await ctx.reply(
+    await replyInTopic(ctx, 
       `✅ Демка добавлена!\n\n` +
         `ID: ${demoId}\n` +
         `Название: ${title}\n` +
@@ -80,7 +104,7 @@ export function registerCommands(bot: Bot<MyContext>): void {
 bot.command("list", async (ctx) => {
   const view = buildArchiveView(0);
 
-  await ctx.reply(view.text, {
+  await replyInTopic(ctx, view.text, {
     reply_markup: view.keyboard,
   });
 });
@@ -89,7 +113,7 @@ bot.command("demo", async (ctx) => {
   const demoId = Number(ctx.match.trim());
 
   if (!Number.isSafeInteger(demoId) || demoId <= 0) {
-    await ctx.reply("Использование: /demo ID");
+    await replyInTopic(ctx, "Использование: /demo ID");
     return;
   }
 
@@ -102,21 +126,21 @@ bot.command("files", async (ctx) => {
   const demoId = Number(ctx.match.trim());
 
   if (!Number.isSafeInteger(demoId) || demoId <= 0) {
-    await ctx.reply("Использование: /files ID");
+    await replyInTopic(ctx, "Использование: /files ID");
     return;
   }
 
   const demo = getDemoById(demoId);
 
   if (!demo) {
-    await ctx.reply("❌ Демка не найдена.");
+    await replyInTopic(ctx, "❌ Демка не найдена.");
     return;
   }
 
   const files = getDemoAttachments(demoId);
 
   if (files.length === 0) {
-    await ctx.reply("У демки нет прикреплённых файлов.");
+    await replyInTopic(ctx, "У демки нет прикреплённых файлов.");
     return;
   }
 
@@ -141,7 +165,7 @@ bot.command("files", async (ctx) => {
     return `${index + 1}. ${label}\n${source} • ID файла: ${file.id}`;
   });
 
-  await ctx.reply(
+  await replyInTopic(ctx, 
     `📎 Файлы демки #${demoId}\n` +
     `🎵 ${demo.title}\n\n` +
     `Всего файлов: ${files.length}\n\n` +
@@ -155,11 +179,11 @@ bot.command("myid", async (ctx) => {
   const userId = ctx.from?.id;
 
   if (userId === undefined) {
-    await ctx.reply("Не удалось определить Telegram ID.");
+    await replyInTopic(ctx, "Не удалось определить Telegram ID.");
     return;
   }
 
-  await ctx.reply(`Твой Telegram ID: ${userId}`);
+  await replyInTopic(ctx, `Твой Telegram ID: ${userId}`);
 });
 
 }
