@@ -37,90 +37,90 @@ export function registerMessages(bot: Bot<MyContext>): void {
       return;
     }
 
-    
-// Изменение названия вложения
-if (step === "edit_attachment_label") {
-  if (!canEditDemo(ctx)) {
-    ctx.session = initialSession();
-    await ctx.reply("⛔ Нет прав на редактирование.");
-    return;
-  }
 
-  const demoId = ctx.session.editAttachmentDemoId;
-  const attachmentId = ctx.session.editAttachmentId;
+    // Изменение названия вложения
+    if (step === "edit_attachment_label") {
+      if (!canEditDemo(ctx)) {
+        ctx.session = initialSession();
+        await ctx.reply("⛔ Нет прав на редактирование.");
+        return;
+      }
 
-  if (
-    demoId === undefined ||
-    attachmentId === undefined ||
-    !Number.isSafeInteger(demoId) ||
-    !Number.isSafeInteger(attachmentId) ||
-    demoId <= 0 ||
-    attachmentId <= 0
-  ) {
-    ctx.session = initialSession();
-    await ctx.reply("Ошибка: вложение не выбрано.");
-    return;
-  }
+      const demoId = ctx.session.editAttachmentDemoId;
+      const attachmentId = ctx.session.editAttachmentId;
 
-  // Символ "-" очищает название
-  const newLabel = text === "-" ? null : text;
+      if (
+        demoId === undefined ||
+        attachmentId === undefined ||
+        !Number.isSafeInteger(demoId) ||
+        !Number.isSafeInteger(attachmentId) ||
+        demoId <= 0 ||
+        attachmentId <= 0
+      ) {
+        ctx.session = initialSession();
+        await ctx.reply("Ошибка: вложение не выбрано.");
+        return;
+      }
 
-  if (
-    newLabel !== null &&
-    (newLabel.length === 0 || newLabel.length > 80)
-  ) {
-    await ctx.reply(
-      "Название должно содержать от 1 до 80 символов."
-    );
-    return;
-  }
+      // Символ "-" очищает название
+      const newLabel = text === "-" ? null : text;
 
-  const file = getDemoAttachmentById(
-    demoId,
-    attachmentId
-  );
+      if (
+        newLabel !== null &&
+        (newLabel.length === 0 || newLabel.length > 80)
+      ) {
+        await ctx.reply(
+          "Название должно содержать от 1 до 80 символов."
+        );
+        return;
+      }
 
-  if (!file) {
-    ctx.session = initialSession();
-    await ctx.reply("❌ Вложение не найдено.");
-    return;
-  }
+      const file = getDemoAttachmentById(
+        demoId,
+        attachmentId
+      );
 
-  if ((file.label ?? null) === newLabel) {
-    await ctx.reply(
-      "Это название уже установлено.\n" +
-      "Отправь другое название или нажми «Отмена»."
-    );
-    return;
-  }
+      if (!file) {
+        ctx.session = initialSession();
+        await ctx.reply("❌ Вложение не найдено.");
+        return;
+      }
 
-  const updated = updateDemoAttachmentLabel(
-    demoId,
-    attachmentId,
-    newLabel
-  );
+      if ((file.label ?? null) === newLabel) {
+        await ctx.reply(
+          "Это название уже установлено.\n" +
+          "Отправь другое название или нажми «Отмена»."
+        );
+        return;
+      }
 
-  ctx.session = initialSession();
+      const updated = updateDemoAttachmentLabel(
+        demoId,
+        attachmentId,
+        newLabel
+      );
 
-  if (!updated) {
-    await ctx.reply(
-      "❌ Не удалось изменить название файла."
-    );
-    return;
-  }
+      ctx.session = initialSession();
 
-  await ctx.reply(
-    `✅ Название вложения изменено!\n\n` +
-    `Демка: #${demoId}\n` +
-    `Файл: #${attachmentId}\n\n` +
-    `📎 ${newLabel ?? "Без названия"}`,
-    {
-      reply_markup: attachmentResultKeyboard(demoId),
+      if (!updated) {
+        await ctx.reply(
+          "❌ Не удалось изменить название файла."
+        );
+        return;
+      }
+
+      await ctx.reply(
+        `✅ Название вложения изменено!\n\n` +
+        `Демка: #${demoId}\n` +
+        `Файл: #${attachmentId}\n\n` +
+        `📎 ${newLabel ?? "Без названия"}`,
+        {
+          reply_markup: attachmentResultKeyboard(demoId),
+        }
+      );
+
+      return;
     }
-  );
-
-  return;
-}
 
     // Прикрепление ссылки к существующей демке
     if (step === "attach_source") {
@@ -364,6 +364,8 @@ if (step === "edit_attachment_label") {
         "🎤 Голосовым сообщением\n" +
         "🎧 Аудиофайлом\n" +
         "🎥 Кружком Telegram\n\n" +
+        "🎬 Обычным видео\n" +
+        "📁 Видео, отправленным как документ\n" +
         "Можно также переслать существующее сообщение."
       );
       return;
@@ -436,6 +438,15 @@ if (step === "edit_attachment_label") {
       sourceType = "telegram_video_note";
     }
 
+
+    // Обычное видео Telegram
+    else if (ctx.message.video) {
+      fileId = ctx.message.video.file_id;
+      fileUniqueId = ctx.message.video.file_unique_id;
+      sourceType = "telegram_video";
+    }
+
+
     // Аудиофайл
     else if (ctx.message.audio) {
       fileId = ctx.message.audio.file_id;
@@ -443,35 +454,50 @@ if (step === "edit_attachment_label") {
       sourceType = "telegram_audio";
     }
 
-    // Аудио, отправленное как документ
+
     else if (ctx.message.document) {
       const document = ctx.message.document;
 
       const mimeType = document.mime_type ?? "";
       const fileName = document.file_name ?? "";
 
+      // Проверяем аудиофайл
       const isAudio =
         mimeType.startsWith("audio/") ||
         /\.(mp3|wav|flac|ogg|m4a|aac|opus)$/i.test(
           fileName
         );
 
-      if (!isAudio) {
+      // Проверяем видеофайл
+      const isVideo =
+        mimeType.startsWith("video/") ||
+        /\.(mp4|mov|mkv|webm|avi|m4v)$/i.test(
+          fileName
+        );
+
+      // Отклоняем неподдерживаемые документы
+      if (!isAudio && !isVideo) {
         await ctx.reply(
-          "❌ Этот документ не похож на аудиофайл."
+          "❌ Поддерживаются только аудио и видеофайлы."
         );
         return;
       }
 
+      // Сохраняем идентификаторы Telegram
       fileId = document.file_id;
       fileUniqueId = document.file_unique_id;
-      sourceType = "telegram_document";
+
+      // Определяем тип вложения
+      sourceType = isVideo
+        ? "telegram_video_document"
+        : "telegram_document";
     }
+
 
     else {
       await ctx.reply(
-        "Отправь голосовое, кружок, аудиофайл " +
-        "или ссылку."
+        "Отправь голосовое, кружок, аудиофайл, " +
+        "видео или ссылку."
       );
       return;
     }

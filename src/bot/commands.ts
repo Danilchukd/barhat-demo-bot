@@ -127,6 +127,8 @@ bot.command("files", async (ctx) => {
     google_drive: "☁️ Google Drive",
     yandex_disk: "☁️ Яндекс Диск",
     external: "🔗 Внешняя ссылка",
+    telegram_video: "🎬 Видео",
+    telegram_video_document: "🎞️ Видеодокумент",
   };
 
   const lines = files.slice(0, 20).map((file, index) => {

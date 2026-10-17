@@ -247,6 +247,8 @@ export const demoAttachmentsKeyboard = (
     google_drive: "☁️",
     yandex_disk: "☁️",
     external: "🔗",
+    telegram_video: "🎬",
+    telegram_video_document: "🎞️",
   };
 
   files.slice(0, 20).forEach((file, index) => {

@@ -39,7 +39,9 @@ export type TelegramFileType =
   | "telegram_voice"
   | "telegram_audio"
   | "telegram_document"
-  | "telegram_video_note";
+  | "telegram_video_note"
+  | "telegram_video"
+  | "telegram_video_document";
 
 // Определяем источник ссылки
 export function getSourceType(url: URL): string {

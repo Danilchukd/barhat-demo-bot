@@ -19,23 +19,23 @@ export async function sendDemo(
     return;
   }
 
-  
-// Выбираем источник файла.
-//
-// Без attachmentId используем последний файл,
-// как делали раньше.
-//
-// С attachmentId получаем конкретное вложение.
-const file = attachmentId === undefined
-  ? demo
-  : getDemoAttachmentById(demoId, attachmentId);
 
-if (!file) {
-  await ctx.reply(
-    "❌ Указанный файл не найден."
-  );
-  return;
-}
+  // Выбираем источник файла.
+  //
+  // Без attachmentId используем последний файл,
+  // как делали раньше.
+  //
+  // С attachmentId получаем конкретное вложение.
+  const file = attachmentId === undefined
+    ? demo
+    : getDemoAttachmentById(demoId, attachmentId);
+
+  if (!file) {
+    await ctx.reply(
+      "❌ Указанный файл не найден."
+    );
+    return;
+  }
 
 
 
@@ -95,6 +95,7 @@ if (!file) {
       });
       break;
 
+    case "telegram_video_document":  
     case "telegram_document":
       await ctx.replyWithDocument(fileId, {
         caption,
@@ -111,6 +112,13 @@ if (!file) {
         reply_markup: keyboard,
       });
 
+      break;
+
+    case "telegram_video":
+      await ctx.replyWithVideo(fileId, {
+        caption,
+        reply_markup: keyboard,
+      });
       break;
 
     default:
