@@ -17,6 +17,7 @@ import { getThreadId } from "./forum.js";
 import { replyInTopic } from "./topicReply.js";
 import { sendDemo } from "./sendDemo.js";
 import { buildArchiveView } from "./archiveView.js";
+import { buildDemoDeepLink, parseDemoStartPayload } from "./demoDeepLinks.js";
 
 export function registerCommands(bot: Bot<MyContext>): void {
   // Получение chat_id и message_thread_id при настройке топика
@@ -44,6 +45,20 @@ export function registerCommands(bot: Bot<MyContext>): void {
 
   bot.command("start", async (ctx) => {
     ctx.session = initialSession();
+
+    // Telegram deep link: https://t.me/<bot>?start=demo_123
+    // Доступ к архиву уже проверен middleware до этого обработчика.
+    const payload = ctx.match.trim();
+    if (ctx.chat.type === "private" && payload.startsWith("demo_")) {
+      const demoId = parseDemoStartPayload(payload);
+      if (demoId === null) {
+        await replyInTopic(ctx, "❌ Некорректная ссылка на демку.");
+        return;
+      }
+
+      await sendDemo(ctx, demoId);
+      return;
+    }
 
     await replyInTopic(ctx, 
       "Джон Бархат на связи\n\n" +
@@ -121,6 +136,24 @@ bot.command("demo", async (ctx) => {
   await sendDemo(ctx, demoId);
 });
 
+
+bot.command("link", async (ctx) => {
+  const demoId = Number(ctx.match.trim());
+
+  if (!Number.isSafeInteger(demoId) || demoId <= 0) {
+    await replyInTopic(ctx, "Использование: /link ID");
+    return;
+  }
+
+  const demo = getDemoById(demoId);
+  if (!demo) {
+    await replyInTopic(ctx, "❌ Демка не найдена.");
+    return;
+  }
+
+  const link = buildDemoDeepLink(demoId, ctx.me.username);
+  await replyInTopic(ctx, `🔗 Ссылка на демку #${demoId} — ${demo.title}\n${link}`);
+});
 
 bot.command("files", async (ctx) => {
   const demoId = Number(ctx.match.trim());
