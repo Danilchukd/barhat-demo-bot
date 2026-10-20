@@ -11,6 +11,8 @@ import {
   getDemoAttachmentById,
   updateDemoAttachmentLabel,
   type TelegramFileType,
+  DuplicateDemoTitleError,
+  ensureUniqueDemoTitle,
 } from "../db/demoRepository.js";
 import {
   mainKeyboard,
@@ -18,6 +20,8 @@ import {
   attachmentResultKeyboard,
 } from "./keyboards.js";
 import { initialSession, type MyContext } from "./session.js";
+import { isArchiveContext } from "./forum.js";
+import { replyInTopic } from "./topicReply.js";
 import { demoPropertiesKeyboard } from "./keyboards.js";
 import { canEditDemo } from "./access.js";
 import { buildSearchResultsView } from "./searchResultsView.js";
@@ -25,7 +29,7 @@ import { buildSearchResultsView } from "./searchResultsView.js";
 export function registerMessages(bot: Bot<MyContext>): void {
   // Важно: регистрировать ПОСЛЕ registerCommands и registerCallbacks.
   bot.on("message:text", async (ctx, next) => {
-    if (ctx.chat.type !== "private") {
+    if (!isArchiveContext(ctx)) {
       await next();
       return;
     }
@@ -43,7 +47,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
     if (step === "edit_attachment_label") {
       if (!canEditDemo(ctx)) {
         ctx.session = initialSession();
-        await ctx.reply("⛔ Нет прав на редактирование.");
+        await replyInTopic(ctx, "⛔ Нет прав на редактирование.");
         return;
       }
 
@@ -59,7 +63,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
         attachmentId <= 0
       ) {
         ctx.session = initialSession();
-        await ctx.reply("Ошибка: вложение не выбрано.");
+        await replyInTopic(ctx, "Ошибка: вложение не выбрано.");
         return;
       }
 
@@ -70,7 +74,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
         newLabel !== null &&
         (newLabel.length === 0 || newLabel.length > 80)
       ) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "Название должно содержать от 1 до 80 символов."
         );
         return;
@@ -83,12 +87,12 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (!file) {
         ctx.session = initialSession();
-        await ctx.reply("❌ Вложение не найдено.");
+        await replyInTopic(ctx, "❌ Вложение не найдено.");
         return;
       }
 
       if ((file.label ?? null) === newLabel) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "Это название уже установлено.\n" +
           "Отправь другое название или нажми «Отмена»."
         );
@@ -104,13 +108,13 @@ export function registerMessages(bot: Bot<MyContext>): void {
       ctx.session = initialSession();
 
       if (!updated) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "❌ Не удалось изменить название файла."
         );
         return;
       }
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `✅ Название вложения изменено!\n\n` +
         `Демка: #${demoId}\n` +
         `Файл: #${attachmentId}\n\n` +
@@ -129,7 +133,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (!demoId) {
         ctx.session = initialSession();
-        await ctx.reply("Ошибка: демка не выбрана.");
+        await replyInTopic(ctx, "Ошибка: демка не выбрана.");
         return;
       }
 
@@ -145,7 +149,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
           throw new Error("Invalid URL");
         }
       } catch {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "❌ Некорректная ссылка.\n" +
           "Отправь обычную HTTP/HTTPS-ссылку."
         );
@@ -159,7 +163,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
       });
 
       if (result === "duplicate") {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "⚠️ Такая ссылка уже прикреплена к этой демке.\n" +
           "Отправь другой файл или нажми «Отмена»."
         );
@@ -168,13 +172,13 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (result === "not_found") {
         ctx.session = initialSession();
-        await ctx.reply("❌ Демка не найдена.");
+        await replyInTopic(ctx, "❌ Демка не найдена.");
         return;
       }
 
       ctx.session = initialSession();
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `✅ Файл прикреплён к демке #${demoId}!\n\n` +
         "Источник: ссылка\n\n" +
         "Новая демка не создавалась.",
@@ -190,7 +194,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
     if (step === "edit_title") {
       if (!canEditDemo(ctx)) {
         ctx.session = initialSession();
-        await ctx.reply("⛔ Нет прав на редактирование.");
+        await replyInTopic(ctx, "⛔ Нет прав на редактирование.");
         return;
       }
 
@@ -202,7 +206,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
         demoId <= 0
       ) {
         ctx.session = initialSession();
-        await ctx.reply("Ошибка: демка не выбрана.");
+        await replyInTopic(ctx, "Ошибка: демка не выбрана.");
         return;
       }
 
@@ -210,7 +214,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       // Проверяем новое название
       if (!newTitle || newTitle.length > 150) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "Название должно содержать от 1 до 150 символов."
         );
         return;
@@ -220,17 +224,28 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (!demo) {
         ctx.session = initialSession();
-        await ctx.reply("❌ Демка не найдена.");
+        await replyInTopic(ctx, "❌ Демка не найдена.");
         return;
       }
 
       // Не обновляем запись без необходимости
       if (demo.title === newTitle) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "Это название уже используется для данной демки.\n" +
           "Введи другое название."
         );
         return;
+      }
+
+      // Не даём переименовать демку в название другой существующей.
+      try {
+        ensureUniqueDemoTitle(newTitle, demoId);
+      } catch (error) {
+        if (error instanceof DuplicateDemoTitleError) {
+          await replyInTopic(ctx, "⚠️ Такая демка уже есть. Выбери другое название.");
+          return;
+        }
+        throw error;
       }
 
       // Сохраняем название
@@ -239,11 +254,11 @@ export function registerMessages(bot: Bot<MyContext>): void {
       ctx.session = initialSession();
 
       if (!updated) {
-        await ctx.reply("❌ Не удалось изменить название.");
+        await replyInTopic(ctx, "❌ Не удалось изменить название.");
         return;
       }
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `✅ Название демки #${demoId} изменено!\n\n` +
         `🎵 ${newTitle}`,
         {
@@ -259,7 +274,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
     if (step === "edit_description") {
       if (!canEditDemo(ctx)) {
         ctx.session = initialSession();
-        await ctx.reply("⛔ Нет прав на редактирование.");
+        await replyInTopic(ctx, "⛔ Нет прав на редактирование.");
         return;
       }
 
@@ -267,12 +282,12 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (!demoId) {
         ctx.session = initialSession();
-        await ctx.reply("Ошибка: не выбрана демка.");
+        await replyInTopic(ctx, "Ошибка: не выбрана демка.");
         return;
       }
 
       if (text.length > 500 || text.length === 0) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "Описание должно содержать до 500 символов."
         );
         return;
@@ -282,7 +297,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (!demo) {
         ctx.session = initialSession();
-        await ctx.reply("Демка не найдена.");
+        await replyInTopic(ctx, "Демка не найдена.");
         return;
       }
 
@@ -295,7 +310,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       ctx.session = initialSession();
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `✅ Описание демки #${demoId} обновлено!\n\n` +
         `📝 ${description ?? "Описание удалено"}`,
         {
@@ -313,7 +328,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
     // Обработка поискового запроса
     if (step === "search") {
       if (text.length < 2 || text.length > 80) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "Введи от 2 до 80 символов для поиска."
         );
         return;
@@ -328,7 +343,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
       // Формируем первую страницу
       const view = buildSearchResultsView(text, 0);
 
-      await ctx.reply(view.text, {
+      await replyInTopic(ctx, view.text, {
         reply_markup: view.keyboard,
       });
 
@@ -339,14 +354,24 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
     if (step === "title") {
       if (!text || text.length > 150) {
-        await ctx.reply("Название должно содержать от 1 до 150 символов.");
+        await replyInTopic(ctx, "Название должно содержать от 1 до 150 символов.");
         return;
+      }
+
+      try {
+        ensureUniqueDemoTitle(text);
+      } catch (error) {
+        if (error instanceof DuplicateDemoTitleError) {
+          await replyInTopic(ctx, "⚠️ Демка с таким названием уже существует. Введи другое.");
+          return;
+        }
+        throw error;
       }
 
       ctx.session.title = text;
       ctx.session.step = "source";
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `🎵 Название: ${text}\n\n` +
         "Теперь отправь демку одним из способов:\n\n" +
         "🔗 Ссылкой на Google Drive или Яндекс Диск\n" +
@@ -369,16 +394,26 @@ export function registerMessages(bot: Bot<MyContext>): void {
           throw new Error("Invalid URL");
         }
       } catch {
-        await ctx.reply("❌ Некорректная ссылка.\nОтправь обычную HTTP/HTTPS-ссылку.");
+        await replyInTopic(ctx, "❌ Некорректная ссылка.\nОтправь обычную HTTP/HTTPS-ссылку.");
         return;
       }
 
       const title = ctx.session.title;
       const sourceType = getSourceType(parsedUrl);
-      const demoId = saveDemo(title, text, sourceType);
+      let demoId: number;
+      try {
+        demoId = saveDemo(title, text, sourceType);
+      } catch (error) {
+        if (error instanceof DuplicateDemoTitleError) {
+          ctx.session = { step: "title", title: "" };
+          await replyInTopic(ctx, "⚠️ Это название уже занято. Введи другое.");
+          return;
+        }
+        throw error;
+      }
       ctx.session = initialSession();
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `✅ Демка успешно добавлена!\n\n` +
         `ID: ${demoId}\n` +
         `Название: ${title}\n` +
@@ -391,7 +426,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
   // Вложения: голосовые, аудио и документы с аудиофайлом.
 
   bot.on("message", async (ctx) => {
-    if (ctx.chat.type !== "private") {
+    if (!isArchiveContext(ctx)) {
       return;
     }
 
@@ -466,7 +501,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       // Отклоняем неподдерживаемые документы
       if (!isAudio && !isVideo) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "❌ Поддерживаются только аудио и видеофайлы."
         );
         return;
@@ -484,7 +519,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
 
     else {
-      await ctx.reply(
+      await replyInTopic(ctx, 
         "Отправь голосовое, кружок, аудиофайл, " +
         "видео или ссылку."
       );
@@ -497,7 +532,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (!demoId) {
         ctx.session = initialSession();
-        await ctx.reply("Ошибка: демка не выбрана.");
+        await replyInTopic(ctx, "Ошибка: демка не выбрана.");
         return;
       }
 
@@ -509,7 +544,7 @@ export function registerMessages(bot: Bot<MyContext>): void {
       });
 
       if (result === "duplicate") {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "⚠️ Этот файл уже прикреплён к демке.\n" +
           "Отправь другой файл или нажми «Отмена»."
         );
@@ -518,13 +553,13 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       if (result === "not_found") {
         ctx.session = initialSession();
-        await ctx.reply("❌ Демка не найдена.");
+        await replyInTopic(ctx, "❌ Демка не найдена.");
         return;
       }
 
       ctx.session = initialSession();
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `✅ Файл прикреплён к демке #${demoId}!\n\n` +
         `Источник: Telegram\n\n` +
         "Все предыдущие вложения сохранены.",
@@ -539,15 +574,21 @@ export function registerMessages(bot: Bot<MyContext>): void {
     // Обычное создание новой демки
     const title = ctx.session.title;
 
-    const demoId = saveTelegramDemo(
-      title,
-      fileId,
-      sourceType
-    );
+    let demoId: number;
+    try {
+      demoId = saveTelegramDemo(title, fileId, sourceType);
+    } catch (error) {
+      if (error instanceof DuplicateDemoTitleError) {
+        ctx.session = { step: "title", title: "" };
+        await replyInTopic(ctx, "⚠️ Это название уже занято. Введи другое.");
+        return;
+      }
+      throw error;
+    }
 
     ctx.session = initialSession();
 
-    await ctx.reply(
+    await replyInTopic(ctx, 
       `✅ Демка сохранена!\n\n` +
       `ID: ${demoId}\n` +
       `Название: ${title}\n` +

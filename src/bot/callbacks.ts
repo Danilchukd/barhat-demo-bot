@@ -14,6 +14,8 @@ import {
   demoAttachmentsKeyboard,
 } from "./keyboards.js";
 import { initialSession, type MyContext } from "./session.js";
+import { isArchiveContext } from "./forum.js";
+import { replyInTopic } from "./topicReply.js";
 import { sendDemo } from "./sendDemo.js";
 import {
   getDemoById,
@@ -74,9 +76,7 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
   bot.callbackQuery("menu_home", async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type === "private") {
-      ctx.session = initialSession();
-    }
+    ctx.session = initialSession();
 
     const menuText = "Джон BARHAT на связи\n\nВыбери действие:";
 
@@ -89,7 +89,7 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
       });
     } else {
       // Сохраняем присланное аудио и отправляем меню отдельным сообщением.
-      await ctx.reply(menuText, {
+      await replyInTopic(ctx, menuText, {
         reply_markup: mainKeyboard(ctx),
       });
     }
@@ -98,8 +98,8 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
   bot.callbackQuery("menu_add", async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type !== "private") {
-      await ctx.reply("Добавление демок пока доступно в личном чате с ботом.");
+    if (!isArchiveContext(ctx)) {
+      await replyInTopic(ctx, "Добавление демок пока доступно в личном чате с ботом.");
       return;
     }
 
@@ -115,8 +115,8 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
   bot.callbackQuery("menu_search", async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type !== "private") {
-      await ctx.reply(
+    if (!isArchiveContext(ctx)) {
+      await replyInTopic(ctx, 
         "Поиск пока доступен в личном чате с ботом."
       );
       return;
@@ -137,7 +137,7 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
         reply_markup: keyboard,
       });
     } else {
-      await ctx.reply(message, {
+      await replyInTopic(ctx, message, {
         reply_markup: keyboard,
       });
     }
@@ -146,8 +146,8 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
   bot.callbackQuery("search_text", async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type !== "private") {
-      await ctx.reply(
+    if (!isArchiveContext(ctx)) {
+      await replyInTopic(ctx, 
         "Поиск доступен в личном чате с ботом."
       );
       return;
@@ -169,7 +169,7 @@ export function registerCallbacks(bot: Bot<MyContext>): void {
         reply_markup: cancelKeyboard(),
       });
     } else {
-      await ctx.reply(message, {
+      await replyInTopic(ctx, message, {
         reply_markup: cancelKeyboard(),
       });
     }
@@ -182,7 +182,7 @@ bot.callbackQuery(
   async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type !== "private") {
+    if (!isArchiveContext(ctx)) {
       return;
     }
 
@@ -190,7 +190,7 @@ bot.callbackQuery(
     const query = ctx.session.searchQuery;
 
     if (!query) {
-      await ctx.reply(
+      await replyInTopic(ctx, 
         "Поисковый запрос больше не сохранён.\n" +
         "Начни поиск заново."
       );
@@ -213,8 +213,8 @@ bot.callbackQuery(
   bot.callbackQuery("search_types", async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type !== "private") {
-      await ctx.reply(
+    if (!isArchiveContext(ctx)) {
+      await replyInTopic(ctx, 
         "Поиск доступен в личном чате с ботом."
       );
       return;
@@ -235,7 +235,7 @@ bot.callbackQuery(
         reply_markup: keyboard,
       });
     } else {
-      await ctx.reply(message, {
+      await replyInTopic(ctx, message, {
         reply_markup: keyboard,
       });
     }
@@ -248,8 +248,8 @@ bot.callbackQuery(
   async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type !== "private") {
-      await ctx.reply(
+    if (!isArchiveContext(ctx)) {
+      await replyInTopic(ctx, 
         "Поиск доступен в личном чате с ботом."
       );
       return;
@@ -276,7 +276,7 @@ bot.callbackQuery(
         reply_markup: view.keyboard,
       });
     } else {
-      await ctx.reply(view.text, {
+      await replyInTopic(ctx, view.text, {
         reply_markup: view.keyboard,
       });
     }
@@ -290,14 +290,14 @@ bot.callbackQuery(
   async (ctx) => {
     await ctx.answerCallbackQuery();
 
-    if (ctx.chat?.type !== "private") {
+    if (!isArchiveContext(ctx)) {
       return;
     }
 
     const filterType = ctx.session.filterType;
 
     if (!filterType) {
-      await ctx.reply(
+      await replyInTopic(ctx, 
         "Выбранная категория больше не сохранена.\n" +
         "Выбери тип демки заново.",
         {
@@ -334,7 +334,7 @@ bot.callbackQuery(
         reply_markup: view.keyboard,
       });
     } else {
-      await ctx.reply(view.text, {
+      await replyInTopic(ctx, view.text, {
         reply_markup: view.keyboard,
       });
     }
@@ -389,7 +389,7 @@ bot.callbackQuery(
     const requestedPage = Number(ctx.match[3] ?? "0");
 
     if (!Number.isSafeInteger(demoId) || demoId <= 0) {
-      await ctx.reply("❌ Некорректный ID демки.");
+      await replyInTopic(ctx, "❌ Некорректный ID демки.");
       return;
     }
 
@@ -446,7 +446,7 @@ bot.callbackQuery(
     if (!target) {
       const view = buildArchiveView(0);
 
-      await ctx.reply(view.text, {
+      await replyInTopic(ctx, view.text, {
         reply_markup: view.keyboard,
       });
       return;
@@ -483,7 +483,7 @@ bot.callbackQuery(
       });
     } else {
       // Аудио и видео не заменяем текстом
-      await ctx.reply(view.text, {
+      await replyInTopic(ctx, view.text, {
         reply_markup: view.keyboard,
       });
     }
@@ -499,14 +499,14 @@ bot.callbackQuery(
       const demoId = Number(ctx.match[1] ?? "");
 
       if (!Number.isSafeInteger(demoId) || demoId <= 0) {
-        await ctx.reply("Некорректный ID демки.");
+        await replyInTopic(ctx, "Некорректный ID демки.");
         return;
       }
 
       const demo = getDemoById(demoId);
 
       if (!demo) {
-        await ctx.reply("❌ Демка не найдена.");
+        await replyInTopic(ctx, "❌ Демка не найдена.");
         return;
       }
 
@@ -536,7 +536,7 @@ bot.callbackQuery(
           reply_markup: keyboard,
         });
       } else {
-        await ctx.reply(message, {
+        await replyInTopic(ctx, message, {
           reply_markup: keyboard,
         });
       }
@@ -546,7 +546,7 @@ bot.callbackQuery(
 
   // Прикрепление файла к существующей демке
   bot.callbackQuery(/^demo_attach:(\d+)$/, async (ctx) => {
-    if (ctx.chat?.type !== "private") {
+    if (!isArchiveContext(ctx)) {
       await ctx.answerCallbackQuery({
         text: "Открой личный чат с ботом",
         show_alert: true,
@@ -583,7 +583,7 @@ bot.callbackQuery(
       attachDemoId: demoId,
     };
 
-    await ctx.reply(
+    await replyInTopic(ctx, 
       `➕ Прикрепление файла\n\n` +
       `🎵 #${demoId} — ${demo.title}\n\n` +
       "Отправь дополнительный файл:\n\n" +
@@ -613,7 +613,7 @@ bot.callbackQuery(
         demoId <= 0 ||
         attachmentId <= 0
       ) {
-        await ctx.reply(
+        await replyInTopic(ctx, 
           "❌ Некорректный ID файла."
         );
         return;
@@ -754,7 +754,7 @@ bot.callbackQuery(
       const files = getDemoAttachments(demoId);
 
       if (!demo) {
-        await ctx.reply("Демка не найдена.");
+        await replyInTopic(ctx, "Демка не найдена.");
         return;
       }
 
@@ -829,7 +829,7 @@ bot.callbackQuery(
       const currentLabel =
         file.label?.trim() || "Не указано";
 
-      await ctx.reply(
+      await replyInTopic(ctx, 
         `✏️ Переименование вложения\n\n` +
         `Демка: #${demoId}\n` +
         `ID файла: ${attachmentId}\n` +
@@ -967,19 +967,19 @@ bot.callbackQuery(
     await ctx.answerCallbackQuery();
 
     if (!canEditDemo(ctx)) {
-      await ctx.reply("⛔ У тебя нет прав на редактирование.");
+      await replyInTopic(ctx, "⛔ У тебя нет прав на редактирование.");
       return;
     }
 
     const demoId = Number(ctx.match[1]);
 
     if (!Number.isSafeInteger(demoId) || demoId <= 0) {
-      await ctx.reply("Некорректный ID демки.");
+      await replyInTopic(ctx, "Некорректный ID демки.");
       return;
     }
 
     if (!getDemoById(demoId)) {
-      await ctx.reply("Демка не найдена.");
+      await replyInTopic(ctx, "Демка не найдена.");
       return;
     }
 
@@ -987,7 +987,7 @@ bot.callbackQuery(
 
     // Отправляем отдельное сообщение,
     // чтобы не заменять исходное аудио.
-    await ctx.reply(getPropertiesText(demoId), {
+    await replyInTopic(ctx, getPropertiesText(demoId), {
       reply_markup: demoPropertiesKeyboard(demoId),
     });
   });
@@ -1055,7 +1055,7 @@ bot.callbackQuery(
     await ctx.answerCallbackQuery();
 
     if (!canEditDemo(ctx)) {
-      await ctx.reply("⛔ У тебя нет прав на редактирование.");
+      await replyInTopic(ctx, "⛔ У тебя нет прав на редактирование.");
       return;
     }
 
@@ -1064,7 +1064,7 @@ bot.callbackQuery(
     if (!Number.isSafeInteger(demoId) ||
       demoId <= 0 ||
       !getDemoById(demoId)) {
-      await ctx.reply("Демка не найдена.");
+      await replyInTopic(ctx, "Демка не найдена.");
       return;
     }
 
@@ -1319,7 +1319,7 @@ bot.callbackQuery(
         reply_markup: view.keyboard,
       });
     } else {
-      await ctx.reply(view.text, {
+      await replyInTopic(ctx, view.text, {
         reply_markup: view.keyboard,
       });
     }

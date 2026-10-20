@@ -1,4 +1,21 @@
 import { db } from "./database.js";
+import { normalizeTitle } from "../sheets/sheetInsertPlan.js";
+
+export class DuplicateDemoTitleError extends Error {
+  constructor() {
+    super("Демка с таким названием уже существует. Выбери другое название.");
+    this.name = "DuplicateDemoTitleError";
+  }
+}
+
+export function ensureUniqueDemoTitle(title: string, exceptId?: number): void {
+  const normalized = normalizeTitle(title);
+  const rows = db.prepare("SELECT id, title FROM demos WHERE deleted_at IS NULL").all() as Array<{ id: number; title: string }>;
+  if (rows.some((row) => row.id !== exceptId && normalizeTitle(row.title) === normalized)) {
+    throw new DuplicateDemoTitleError();
+  }
+}
+
 
 // Типы музыкальных идей
 export type DemoType =
@@ -66,6 +83,7 @@ export function getSourceType(url: URL): string {
 // Добавление демки по ссылке
 const insertLinkDemo = db.transaction(
   (title: string, url: string, sourceType: string): number => {
+    ensureUniqueDemoTitle(title);
     const result = db.prepare(`
       INSERT INTO demos (title)
       VALUES (?)
@@ -431,6 +449,8 @@ export function updateDemoTitle(
       "Название должно содержать от 1 до 150 символов"
     );
   }
+
+  ensureUniqueDemoTitle(title, demoId);
 
   const result = db.prepare(`
     UPDATE demos

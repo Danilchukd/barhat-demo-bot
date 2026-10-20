@@ -1,6 +1,8 @@
 
 import type { MiddlewareFn } from "grammy";
 import type { MyContext } from "./session.js";
+import { isArchiveContext } from "./forum.js";
+import { replyInTopic } from "./topicReply.js";
 
 // Роли пользователей
 export type UserRole = "admin" | "member" | "none";
@@ -56,66 +58,54 @@ export function canEditDemo(
   ctx: MyContext
 ): boolean {
   return (
-    ctx.chat?.type === "private" &&
+    isArchiveContext(ctx) &&
     getUserRole(ctx.from?.id) === "admin"
   );
 }
 
-// Общая проверка доступа к боту
+// Общая проверка доступа. Всё вне разрешённого топика игнорируем.
 export const accessMiddleware: MiddlewareFn<MyContext> =
   async (ctx, next) => {
+    const command = ctx.message?.text ?? "";
 
-    // Групповые чаты подключим на отдельном этапе
-    if (ctx.chat?.type !== "private") {
-      if (ctx.message?.text?.startsWith("/start")) {
-        await ctx.reply(
-          "🎸 BARHAT Demo Archive пока работает " +
-          "только в личных сообщениях с ботом."
-        );
+    // Диагностика ID для настройки топика: доступна только админу
+    // в любой супергруппе, даже пока топик ещё не подключён.
+    if (
+      ctx.chat?.type === "supergroup" &&
+      /^\/topicid(?:@[a-zA-Z0-9_]+)?(?:\s|$)/i.test(command)
+    ) {
+      if (getUserRole(ctx.from?.id) === "admin") {
+        await next();
       }
-
-      if (ctx.callbackQuery) {
-        await ctx.answerCallbackQuery({
-          text: "Открой бота в личном чате",
-          show_alert: true,
-        });
-      }
-
       return;
     }
 
-    // Команда /myid доступна всем:
-    // она нужна для получения Telegram ID
-    const messageText = ctx.message?.text ?? "";
+    if (!isArchiveContext(ctx)) return;
 
-    if (
-      /^\/myid(?:@[a-zA-Z0-9_]+)?(?:\s|$)/i.test(messageText)
-    ) {
+    // Пользователь может узнать ID до включения в allowlist.
+    if (/^\/myid(?:@[a-zA-Z0-9_]+)?(?:\s|$)/i.test(command)) {
       await next();
       return;
     }
 
     const role = getUserRole(ctx.from?.id);
 
-    // Неизвестный пользователь
     if (role === "none") {
       if (ctx.callbackQuery) {
         await ctx.answerCallbackQuery({
           text: "⛔ Нет доступа к архиву BARHAT",
           show_alert: true,
         });
-      } else if (ctx.message) {
-        await ctx.reply(
+      } else if (ctx.message && /^\/[a-z]/i.test(command)) {
+        // Не отвечаем на каждое обычное сообщение в группе.
+        await replyInTopic(
+          ctx,
           "⛔ Доступ к BARHAT Demo Archive закрыт.\n\n" +
-          "Для получения доступа обратись " +
-          "к администратору группы.\n\n" +
-          "Узнать свой Telegram ID: /myid"
+          "Обратись к администратору. Telegram ID: /myid"
         );
       }
-
       return;
     }
 
-    // Пользователь авторизован
     await next();
   };
