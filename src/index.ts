@@ -9,6 +9,7 @@ import { registerCallbacks } from "./bot/callbacks.js";
 import { registerMessages } from "./bot/messages.js";
 import { initialSession, type MyContext } from "./bot/session.js";
 import { getThreadId } from "./bot/forum.js";
+import { startSheetsWorker } from "./sheets/syncWorker.js";
 
 
 const token = process.env.BOT_TOKEN;
@@ -79,6 +80,7 @@ console.log(
 bot.start({
   onStart: (botInfo) => {
     console.log(`Бот успешно запущен: @${botInfo.username}`);
+    startSheetsWorker(botInfo.username);
   },
 }).catch((error) => {
   console.error("Ошибка подключения:", error);
