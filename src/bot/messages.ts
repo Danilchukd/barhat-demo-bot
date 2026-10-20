@@ -11,6 +11,8 @@ import {
   getDemoAttachmentById,
   updateDemoAttachmentLabel,
   type TelegramFileType,
+  DuplicateDemoTitleError,
+  ensureUniqueDemoTitle,
 } from "../db/demoRepository.js";
 import {
   mainKeyboard,
@@ -235,6 +237,17 @@ export function registerMessages(bot: Bot<MyContext>): void {
         return;
       }
 
+      // Не даём переименовать демку в название другой существующей.
+      try {
+        ensureUniqueDemoTitle(newTitle, demoId);
+      } catch (error) {
+        if (error instanceof DuplicateDemoTitleError) {
+          await replyInTopic(ctx, "⚠️ Такая демка уже есть. Выбери другое название.");
+          return;
+        }
+        throw error;
+      }
+
       // Сохраняем название
       const updated = updateDemoTitle(demoId, newTitle);
 
@@ -345,6 +358,16 @@ export function registerMessages(bot: Bot<MyContext>): void {
         return;
       }
 
+      try {
+        ensureUniqueDemoTitle(text);
+      } catch (error) {
+        if (error instanceof DuplicateDemoTitleError) {
+          await replyInTopic(ctx, "⚠️ Демка с таким названием уже существует. Введи другое.");
+          return;
+        }
+        throw error;
+      }
+
       ctx.session.title = text;
       ctx.session.step = "source";
 
@@ -377,7 +400,17 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
       const title = ctx.session.title;
       const sourceType = getSourceType(parsedUrl);
-      const demoId = saveDemo(title, text, sourceType);
+      let demoId: number;
+      try {
+        demoId = saveDemo(title, text, sourceType);
+      } catch (error) {
+        if (error instanceof DuplicateDemoTitleError) {
+          ctx.session = { step: "title", title: "" };
+          await replyInTopic(ctx, "⚠️ Это название уже занято. Введи другое.");
+          return;
+        }
+        throw error;
+      }
       ctx.session = initialSession();
 
       await replyInTopic(ctx, 
@@ -541,11 +574,17 @@ export function registerMessages(bot: Bot<MyContext>): void {
     // Обычное создание новой демки
     const title = ctx.session.title;
 
-    const demoId = saveTelegramDemo(
-      title,
-      fileId,
-      sourceType
-    );
+    let demoId: number;
+    try {
+      demoId = saveTelegramDemo(title, fileId, sourceType);
+    } catch (error) {
+      if (error instanceof DuplicateDemoTitleError) {
+        ctx.session = { step: "title", title: "" };
+        await replyInTopic(ctx, "⚠️ Это название уже занято. Введи другое.");
+        return;
+      }
+      throw error;
+    }
 
     ctx.session = initialSession();
 

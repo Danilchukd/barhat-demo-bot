@@ -3,14 +3,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 // Создаём папку для базы данных
-const dataDir = path.join(process.cwd(), "data");
-
-fs.mkdirSync(dataDir, { recursive: true });
+// Для тестового бота можно указать отдельную SQLite, не затрагивая основную.
+const dbPath = path.resolve(process.env.BARHAT_DB_PATH || path.join(process.cwd(), "data", "barhat.sqlite"));
+fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
 // Подключаем SQLite
-export const db = new Database(
-  path.join(dataDir, "barhat.sqlite")
-);
+export const db = new Database(dbPath);
 
 // Настройки базы
 db.pragma("journal_mode = WAL");
@@ -146,5 +144,39 @@ db.exec(`
 `);
 
 
+
+// Только новые INSERT после установки триггера попадают в очередь.
+// Старые демки не затрагиваются и автоматически не экспортируются.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sheet_sync_jobs (
+    demo_id INTEGER PRIMARY KEY REFERENCES demos(id),
+    state TEXT NOT NULL DEFAULT 'pending'
+      CHECK (state IN ('pending', 'synced', 'conflict')),
+    revision INTEGER NOT NULL DEFAULT 0,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    synced_title TEXT,
+    synced_link TEXT,
+    last_error TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TRIGGER IF NOT EXISTS trg_sheet_sync_new_demo
+  AFTER INSERT ON demos
+  BEGIN
+    INSERT INTO sheet_sync_jobs (demo_id) VALUES (NEW.id);
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_sheet_sync_changed_demo
+  AFTER UPDATE OF title, description ON demos
+  WHEN NEW.title IS NOT OLD.title OR NEW.description IS NOT OLD.description
+  BEGIN
+    UPDATE sheet_sync_jobs
+    SET revision = revision + 1,
+        state = 'pending',
+        last_error = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE demo_id = NEW.id;
+  END;
+`);
 
 console.log("База данных SQLite подключена!");

@@ -6,6 +6,7 @@ import {
   saveDemo,
   getDemoAttachments,
   getDemoById,
+  DuplicateDemoTitleError,
 } from "../db/demoRepository.js";
 import {
   mainKeyboard,
@@ -106,7 +107,16 @@ export function registerCommands(bot: Bot<MyContext>): void {
     }
 
     const sourceType = getSourceType(parsedUrl);
-    const demoId = saveDemo(title, url, sourceType);
+    let demoId: number;
+    try {
+      demoId = saveDemo(title, url, sourceType);
+    } catch (error) {
+      if (error instanceof DuplicateDemoTitleError) {
+        await replyInTopic(ctx, "⚠️ Демка с таким названием уже существует.");
+        return;
+      }
+      throw error;
+    }
 
     await replyInTopic(ctx, 
       `✅ Демка добавлена!\n\n` +
