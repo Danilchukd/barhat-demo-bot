@@ -88,8 +88,10 @@ async function main(): Promise<void> {
   if (matches.length !== 1) {
     throw new Error("Ожидалась ровно одна обновлённая строка, найдено " + matches.length);
   }
-  const [{ index, row }] = matches;
-  if (!row || String(row[8] ?? "") !== originalUrl ||
+  const match = matches[0];
+  if (!match) throw new Error("Строка пропала после поиска");
+  const { index, row } = match;
+  if (String(row[8] ?? "") !== originalUrl ||
       String(row[9] ?? "") !== newDescription) {
     throw new Error("Столбцы I/J содержат неправильные данные");
   }
