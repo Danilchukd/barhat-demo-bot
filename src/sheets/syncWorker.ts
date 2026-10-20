@@ -155,38 +155,43 @@ async function processJob(ctx: SheetContext, job: Job, username: string): Promis
   console.log("[Sheets] синхронизирована демка #" + job.demo_id);
 }
 
+let busy = false;
+
+// Можно вызвать отдельно из тестового CLI, не запуская Telegram-бота.
+export async function runSheetsSyncOnce(botUsername: string): Promise<void> {
+  if (busy) return;
+  busy = true;
+  try {
+    const ctx = await connect();
+    if (!ctx) {
+      console.log("[Sheets] синхронизация выключена");
+      return;
+    }
+    const jobs = selectJobs.all() as Job[];
+    console.log("[Sheets] заданий к обработке:", jobs.length);
+    for (const job of jobs) {
+      try {
+        await processJob(ctx, job, botUsername);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Неизвестная ошибка";
+        const conflict = error instanceof SheetConflictError;
+        fail.run(conflict ? "conflict" : "pending", message.slice(0, 300), job.demo_id);
+        console.error("[Sheets] #" + job.demo_id + (conflict ? " конфликт: " : " повторим: ") + message);
+      }
+    }
+  } catch (error) {
+    console.error("[Sheets] подключение не удалось; демки остаются в очереди:",
+      error instanceof Error ? error.message : "неизвестная ошибка");
+  } finally {
+    busy = false;
+  }
+}
+
 export function startSheetsWorker(botUsername: string): void {
   if ((process.env.GOOGLE_SYNC_MODE ?? "off").trim() === "off") {
     console.log("[Sheets] синхронизация отключена (GOOGLE_SYNC_MODE=off)");
     return;
   }
-
-  let busy = false;
-  async function tick(): Promise<void> {
-    if (busy) return;
-    busy = true;
-    try {
-      const ctx = await connect();
-      if (!ctx) return;
-      const jobs = selectJobs.all() as Job[];
-      for (const job of jobs) {
-        try {
-          await processJob(ctx, job, botUsername);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Неизвестная ошибка";
-          const conflict = error instanceof SheetConflictError;
-          fail.run(conflict ? "conflict" : "pending", message.slice(0, 300), job.demo_id);
-          console.error("[Sheets] #" + job.demo_id + (conflict ? " конфликт: " : " повторим: ") + message);
-        }
-      }
-    } catch (error) {
-      console.error("[Sheets] подключение не удалось; демки остаются в очереди:",
-        error instanceof Error ? error.message : "неизвестная ошибка");
-    } finally {
-      busy = false;
-    }
-  }
-
-  void tick();
-  setInterval(() => { void tick(); }, 60_000);
+  void runSheetsSyncOnce(botUsername);
+  setInterval(() => { void runSheetsSyncOnce(botUsername); }, 60_000);
 }
