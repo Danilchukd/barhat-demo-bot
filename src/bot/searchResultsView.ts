@@ -13,7 +13,7 @@ export function buildSearchResultsView(
 
   const text = result.total === 0
     ? `🔎 По запросу «${query}» ничего не найдено.\n\n` +
-      "Попробуй другое название."
+      "Отправь другое название следующим сообщением."
     : `🔎 Результаты поиска: «${query}»\n\n` +
       `Найдено демок: ${result.total}\n` +
       `Страница ${result.page + 1} из ${result.totalPages}\n\n` +
@@ -21,6 +21,7 @@ export function buildSearchResultsView(
 
   return {
     text,
+    hasResults: result.total > 0,
     keyboard: demoListKeyboard(
       result.demos,
       "search",

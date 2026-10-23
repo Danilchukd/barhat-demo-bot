@@ -100,7 +100,7 @@ export const demoListKeyboard = (
 
   const backAction = mode === "type"
     ? "search_types"
-    : "menu_search";
+    : "search_text";
 
   return keyboard
     .text(backText, backAction)
