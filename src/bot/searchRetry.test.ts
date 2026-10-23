@@ -7,6 +7,10 @@ import path from "node:path";
 // Изолированная SQLite: тест не обращается к архиву на VPS или к рабочей базе.
 const testDir = mkdtempSync(path.join(tmpdir(), "barhat-search-retry-"));
 process.env.BARHAT_DB_PATH = path.join(testDir, "search-test.sqlite");
+// Клавиатуры импортируют проверку прав. Для unit-теста используем фиктивный ID,
+// не загружая рабочие Telegram-настройки из .env.
+process.env.EDITOR_TELEGRAM_ID = "1";
+process.env.ALLOWED_TELEGRAM_IDS = "";
 
 const { buildSearchResultsView } = await import("./searchResultsView.js");
 const { saveDemo } = await import("../db/demoRepository.js");
