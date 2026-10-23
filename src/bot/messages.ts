@@ -324,24 +324,22 @@ export function registerMessages(bot: Bot<MyContext>): void {
 
 
     // Обработка поискового запроса
-
-    // Обработка поискового запроса
     if (step === "search") {
       if (text.length < 2 || text.length > 80) {
-        await replyInTopic(ctx, 
+        await replyInTopic(ctx,
           "Введи от 2 до 80 символов для поиска."
         );
         return;
       }
 
-      // Сохраняем запрос в сессии
+      // При отсутствии результатов остаёмся в режиме ввода,
+      // чтобы пользователь мог сразу отправить новый запрос.
+      const view = buildSearchResultsView(text, 0);
       ctx.session = {
         ...initialSession(),
+        step: view.hasResults ? "idle" : "search",
         searchQuery: text,
       };
-
-      // Формируем первую страницу
-      const view = buildSearchResultsView(text, 0);
 
       await replyInTopic(ctx, view.text, {
         reply_markup: view.keyboard,
